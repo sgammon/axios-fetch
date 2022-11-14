@@ -17,15 +17,13 @@ import express from 'express';
 import multer from 'multer';
 import bodyParser from 'body-parser';
 const isBlobSupported = typeof Blob !== 'undefined';
-import {Throttle} from 'stream-throttle';
 import devNull from 'dev-null';
 import {AbortController} from 'abortcontroller-polyfill/dist/cjs-ponyfill.js';
 import {__setProxy} from "../../../lib/adapters/http.js";
+import {startHTTPServer, LOCAL_SERVER_URL} from "./http-server-utils.js";
 
 const __filename = url.fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-import getStream from 'get-stream';
 
 function setTimeoutAsync(ms) {
   return new Promise(resolve=> setTimeout(resolve, ms));
@@ -47,46 +45,6 @@ function toleranceRange(positive, negative) {
 }
 
 var noop = ()=> {};
-
-const LOCAL_SERVER_URL = 'http://localhost:4444';
-
-function startHTTPServer(options) {
-
-  const {handler, useBuffering = false, rate = undefined, port = 4444} = typeof options === 'function' ? {
-    handler: options
-  } : options || {};
-
-  return new Promise((resolve, reject) => {
-    http.createServer(handler || async function (req, res) {
-      try {
-        req.headers['content-length'] && res.setHeader('content-length', req.headers['content-length']);
-
-        var dataStream = req;
-
-        if (useBuffering) {
-          dataStream = stream.Readable.from(await getStream(req));
-        }
-
-        var streams = [dataStream];
-
-        if (rate) {
-          streams.push(new Throttle({rate}))
-        }
-
-        streams.push(res);
-
-        stream.pipeline(streams, (err) => {
-          err && console.log('Server warning: ' + err.message)
-        });
-      } catch (err){
-        console.warn('HTTP server error:', err);
-      }
-
-    }).listen(port, function (err) {
-      err ? reject(err) : resolve(this);
-    });
-  });
-}
 
 function generateReadableStream(length = 1024 * 1024, chunkSize = 10 * 1024, sleep = 50) {
   return stream.Readable.from(async function* (){
