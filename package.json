@@ -1,6 +1,6 @@
 {
   "name": "axios",
-  "version": "1.2.1",
+  "version": "1.2.1-fetch",
   "description": "Promise based HTTP client for the browser and node.js",
   "main": "index.js",
   "exports": {
@@ -153,7 +153,8 @@
     "Remco Haszing (https://github.com/remcohaszing)",
     "Yasu Flores (https://github.com/yasuf)",
     "Ben Carp (https://github.com/carpben)",
-    "Daniel Lopretto (https://github.com/timemachine3030)"
+    "Daniel Lopretto (https://github.com/timemachine3030)",
+    "Sam Gammon (https://github.com/sgammon)"
   ],
   "sideEffects": false,
   "release-it": {
