@@ -16,6 +16,7 @@ const {
   spread,
   toFormData,
   AxiosHeaders,
+  FetchAdapter,
   HttpStatusCode,
   formToJSON,
   mergeConfig
@@ -35,6 +36,7 @@ export {
   spread,
   toFormData,
   AxiosHeaders,
+  FetchAdapter,
   HttpStatusCode,
   formToJSON,
   mergeConfig
