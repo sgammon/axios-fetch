@@ -149,9 +149,9 @@ module.exports = function(config) {
     // list of files / patterns to load in the browser
     files: [
       {pattern: 'test/specs/__helpers.js', watched: false},
-      {pattern: 'test/specs/**/*.spec.js', watched: false}
+      {pattern: 'test/specs/**/*.spec.js', watched: false},
+      // {pattern: 'test/specs/**/fetch.spec.js', watched: false}
     ],
-
 
     // list of files to exclude
     exclude: [],
@@ -160,6 +160,9 @@ module.exports = function(config) {
     // preprocess matching files before serving them to the browser
     // available preprocessors: https://npmjs.org/browse/keyword/karma-preprocessor
     preprocessors: {
+      './lib/*.js': ['coverage'],
+      './lib/*/*.js': ['coverage'],
+      './lib/**/*.js': ['coverage'],
       'test/specs/__helpers.js': ['rollup'],
       'test/specs/**/*.spec.js': ['rollup']
     },
@@ -182,7 +185,7 @@ module.exports = function(config) {
     // available reporters: https://npmjs.org/browse/keyword/karma-reporter
     // Disable code coverage, as it's breaking CI:
     // reporters: ['dots', 'coverage', 'saucelabs'],
-    reporters: ['progress'],
+    reporters: ['progress', 'dots', 'coverage'],
 
 
     // web server port
@@ -211,7 +214,8 @@ module.exports = function(config) {
 
     // start these browsers
     // available browser launchers: https://npmjs.org/browse/keyword/karma-launcher
-    browsers: browsers,
+    // browsers: browsers,
+    browsers: ['ChromeHeadless'],
 
 
     // Continuous Integration mode
@@ -241,7 +245,23 @@ module.exports = function(config) {
     coverageReporter: {
       type: 'lcov',
       dir: 'coverage/',
-      subdir: '.'
+      subdir: '.',
+      includeAllSources: true,
+      reporters: [
+        {type: 'lcov', subdir: '.'},
+        {type: 'text-summary', subdir: '.'},
+      ]
+    },
+
+    coverageIstanbulInstrumenter: {
+      esModules: true,
+      produceSourceMap: true,
+      plugins: [
+          'asyncGenerators',
+          'dynamicImport',
+          'objectRestSpread',
+          'optionalCatchBinding'
+      ]
     },
 
     sauceLabs: sauceLabs,
