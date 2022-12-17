@@ -14,10 +14,9 @@ jobs:
     runs-on: ubuntu-latest
 
     strategy:
+      fail-fast: false
       matrix:
-        engine: [node, node, node, node, deno]
-        version: [12.x, 14.x, 16.x, 18.x, v1.x]
-        mode: [live, live, live, live, labs]
+        node-version: [12.x, 14.x, 16.x, 18.x]
 
     steps:
       - uses: actions/checkout@v3
@@ -25,16 +24,8 @@ jobs:
           persist-credentials: false
       - name: Setup node
         uses: actions/setup-node@v3
-        if: ${{ matrix.engine == 'node' }}
         with:
-          node-version: ${{ matrix.version }}
+          node-version: ${{ matrix.node-version }}
           cache: npm
-      - uses: denoland/setup-deno@v1
-        if: ${{ matrix.engine == 'deno' }}
-        with:
-          deno-version: ${{ matrix.version }}
       - run: npm install
-      - run: npm run build
-        if: ${{ matrix.engine == 'deno' }}
-      - run: npm test:${{ matrix.engine }}
-        continue-on-error: ${{ matrix.mode == 'labs' }}
+      - run: npm run test:node
