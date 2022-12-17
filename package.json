@@ -122,6 +122,7 @@
   "keywords": [
     "xhr",
     "http",
+    "fetch",
     "ajax",
     "promise",
     "node"
