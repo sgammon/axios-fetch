@@ -190,6 +190,12 @@ module.exports = function(config) {
             replacement: '../helpers/null.js'
           },
 
+          // alias `#xhrAdapter` to implementation
+          {
+            find: '#xhrAdapter',
+            replacement: './xhr.js'
+          },
+
           // resolve the browser or native `fetch` implementation aliases
           {
             find: '#fetchApi',
