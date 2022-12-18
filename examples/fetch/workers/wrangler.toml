@@ -3,3 +3,6 @@ workers_dev = true
 compatibility_date = "2022-12-17"
 main = "axios-worker.mjs"
 
+[env.dev]
+[env.prod]
+

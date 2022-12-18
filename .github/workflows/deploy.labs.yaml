@@ -1,0 +1,81 @@
+name: "Deploy: Labs"
+
+on:
+  push:
+    branches:
+      - feat/fetch-adapter
+  workflow_dispatch:
+    inputs:
+      release:
+        description: 'Name the beta release to push (i.e. "beta1")'
+        required: true
+        default: 'latest'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy to CloudFlare
+    steps:
+      - uses: actions/checkout@v2
+      - name: "Publish: Worker"
+        uses: cloudflare/wrangler-action@2.0.0
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          workingDirectory: 'examples/fetch/workers'
+          command: publish
+      - name: Extract version from package.json
+        uses: sergeysova/jq-action@v2
+        id: version
+        with:
+          cmd: 'jq .version package.json -r'
+      - name: "Publish: Library"
+        env:
+          BUCKET: axios-fetch
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          RELEASE_TAG: ${{ github.event.inputs.release || 'latest' }}
+          RELEASE_VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          cd dist/;
+          mkdir -p "$RELEASE_VERSION/$RELEASE_TAG";
+          mv ./axios*.* browser esm generic node "$RELEASE_VERSION/$RELEASE_TAG/";
+          cd "./$RELEASE_VERSION";
+          for target in **/*.*
+          do
+            CONTENT_TYPE="";
+            case $target in
+              *"cjs"*)
+                CONTENT_TYPE="text/javascript";;
+              *"mjs"*)
+                CONTENT_TYPE="text/javascript";;
+              *"map"*)
+                CONTENT_TYPE="application/json";;
+              *"d.ts"*)
+                CONTENT_TYPE="text/x.typescript";;
+              *"d.cts"*)
+                CONTENT_TYPE="text/x.typescript";;
+              *"js"*)
+                CONTENT_TYPE="text/javascript";;
+              *"js")
+                CONTENT_TYPE="text/javascript";;
+              *)
+            CONTENT_TYPE=$(file -b --mime-type "$target");;
+            esac
+
+            CONTENT_ENCODING="";
+            case $target in
+              *"br"*)
+                CONTENT_ENCODING="br";;
+              *"gz"*)
+                CONTENT_ENCODING="gzip";;
+              *)
+            CONTENT_ENCODING="";;
+            esac
+
+            echo "Publishing $target (type: $CONTENT_TYPE / encoding: ${CONTENT_ENCODING:-identity})...";
+            wrangler r2 object put \
+              "$BUCKET/axios/$RELEASE_VERSION/$target" \
+              --file "$target" \
+              --content-type "$CONTENT_TYPE" \
+              --content-encoding "${CONTENT_ENCODING:-\"\"}" \
+              --cache-control "public, max-age=3600, s-max-age=86400, immutable"
+          done
