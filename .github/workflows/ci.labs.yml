@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
 
     strategy:
@@ -44,3 +44,19 @@ jobs:
         if: ${{ matrix.engine == 'deno' }}
       - run: npm run test:${{ matrix.engine }}
         continue-on-error: ${{ matrix.mode == 'labs' }}
+
+  bundlesize:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          persist-credentials: false
+      - name: Setup node
+        uses: actions/setup-node@v3
+        with:
+          node-version: v18.x
+          cache: npm
+      - run: npm install
+      - run: npx bundlesize
