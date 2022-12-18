@@ -10,11 +10,17 @@ import bundleSize from 'rollup-plugin-bundle-size';
 import copy from 'rollup-plugin-copy';
 import path from 'path';
 
-const lib = require("./package.json");
+import { readFile } from 'fs/promises';
 const outputFileName = 'axios';
 const name = "axios";
 const namedInput = './index.js';
 const defaultInput = './lib/axios.js';
+
+const lib = JSON.parse(
+    await readFile(
+        new URL('./package.json', import.meta.url)
+    )
+);
 
 const buildConfig = ({
   es5,
@@ -48,15 +54,27 @@ const buildConfig = ({
     platformTarget = './generic/index.js';
   }
 
+  const bundleType = {
+    'pure': 'generic/',
+    'esm': 'esm/',
+    'browser': '',
+    '': ''
+  }[
+    pure ? 'pure' :
+    browser ? esm ? 'esm' : 'browser' : ''
+  ]
+
   const build = ({minified}) => ({
     input: namedInput,
     ...config,
     output: {
       ...config.output,
+      sourcemap: true,
       file: `${path.dirname(file)}/${basename}.${(minified ? ['min', ...extArr] : extArr).join('.')}`,
       interop: browser ? 'default' : 'esModule',
       generatedCode: pure ? 'es2015' : 'es5',
       externalLiveBindings: pure ? false : undefined,
+      sourcemapBaseUrl: `https://axios-fetch.elide.dev/axios/${lib.version || 'latest'}/${bundleType}`,
     },
     treeshake: pure ? {
       preset: 'smallest',
