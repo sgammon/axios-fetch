@@ -38,7 +38,7 @@ jobs:
       - name: "Publish: Library"
         env:
           BUCKET: axios-fetch
-          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           RELEASE_TAG: ${{ github.event.inputs.release || 'latest' }}
           RELEASE_VERSION: ${{ steps.version.outputs.value }}
         run: |
