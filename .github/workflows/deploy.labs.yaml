@@ -83,6 +83,5 @@ jobs:
               "$BUCKET/axios/$RELEASE_VERSION/$target" \
               --file "$target" \
               --content-type "$CONTENT_TYPE" \
-              --content-encoding "${CONTENT_ENCODING:-\"\"}" \
               --cache-control "public, max-age=3600, s-max-age=86400, immutable"
           done
