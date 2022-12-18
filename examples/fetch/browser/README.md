@@ -16,10 +16,10 @@ For further reading about Fetch in the browser, see the _Further reading_ sectio
 The full sample has the broadest compatibility and best performance, via the `nomodule` attribute:
 ```html
 <script type="module">
-  import axios from "https://axios.elide.dev/axios/1.2.1-fetch/beta2/esm/axios.min.js";
+  import axios from "https://axios.elide.dev/axios/1.2.1-fetch/beta3/esm/axios.min.js";
   // use axios as ESM module...
 </script>
-<script nomodule src="https://axios.elide.dev/axios/1.2.1-fetch/beta2/axios.min.js"></script>
+<script nomodule src="https://axios.elide.dev/axios/1.2.1-fetch/beta3/axios.min.js"></script>
 <script nomodule>
   // use axios as regular JS...
 </script>
@@ -33,7 +33,7 @@ For targets that are shipping only to ESM-supporting browsers:
 
 ```html
 <script type="module">
-    import axios from "https://axios.elide.dev/axios/1.2.1-fetch/beta2/esm/axios.min.js";
+    import axios from "https://axios.elide.dev/axios/1.2.1-fetch/beta3/esm/axios.min.js";
     // use axios as ESM module...
 </script>
 ```
@@ -43,7 +43,7 @@ For targets that are shipping only to ESM-supporting browsers:
 For targets that are shipping to only non-ESM-supporting browsers:
 
 ```html
-<script src="https://axios.elide.dev/axios/1.2.1-fetch/beta2/axios.min.js"></script>
+<script src="https://axios.elide.dev/axios/1.2.1-fetch/beta3/axios.min.js"></script>
 <script>
     axios.get("https://httpbin.org/json", {adapter: 'fetch'}).then(function (response) {
         console.log("data from response: ", JSON.stringify(response.data));
