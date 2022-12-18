@@ -17,6 +17,12 @@ jobs:
     name: Deploy to CloudFlare
     steps:
       - uses: actions/checkout@v2
+      - name: Setup node
+        uses: actions/setup-node@v3
+        with:
+          node-version: v18.x
+          cache: npm
+      - run: npm install
       - name: "Publish: Worker"
         uses: cloudflare/wrangler-action@2.0.0
         with:
