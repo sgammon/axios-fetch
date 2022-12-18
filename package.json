@@ -87,6 +87,13 @@
       "debug": "./dist/generic/axios.mjs",
       "default": "./dist/generic/axios.min.mjs"
     },
+    "./generic/axios.mjs": {
+      "default": "./dist/generic/axios.mjs"
+    },
+    "./generic/axios.min.mjs": {
+      "debug": "./dist/generic/axios.mjs",
+      "default": "./dist/generic/axios.min.mjs"
+    },
     "./package.json": "./package.json"
   },
   "type": "module",
