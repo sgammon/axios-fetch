@@ -34,7 +34,7 @@ async function handler(request) {
         const response = await axios.get(url, {
             adapter: 'fetch',
             timeout: 1000,
-            responseType: request.url.endsWith('.map') ? 'json' : 'text',
+            responseType: 'text',
             headers: {
                 'Accept': 'application/javascript, text/javascript, application/json, */*',
                 'Accept-Encoding': 'identity',
