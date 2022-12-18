@@ -7,7 +7,7 @@ function applyCorsHeaders(url, headers) {
     mutable.set('Access-Control-Allow-Origin', '*');
     mutable.set('Access-Control-Allow-Methods', 'GET');
     mutable.set('Access-Control-Max-Age', '86400');
-    mutable.set('Cache-Control', 'public, max-age=31536000, s-max-age=31536000, immutable');
+    mutable.set('Cache-Control', 'public, max-age=60, s-max-age=3600, immutable');
     mutable.set('Cross-Origin-Resource-Policy', 'cross-origin');
     if (url.toString().endsWith('.map')) {
         mutable.set('Content-Type', 'application/json');
