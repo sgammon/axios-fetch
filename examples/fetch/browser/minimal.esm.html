@@ -8,7 +8,7 @@
 <h2>Check the console!</h2>
 </body>
 <script type="module">
-  import axios from "https://axios.elide.dev/axios/1.2.1-fetch/beta3/esm/axios.min.js";
+  import axios from "https://axios.elide.dev/axios/1.2.1-fetch/beta4/generic/axios.min.mjs";
   const response = await axios.get("https://httpbin.org/json", {adapter: 'fetch'});
   console.log("data from response: ", JSON.stringify(response.data));
 </script>

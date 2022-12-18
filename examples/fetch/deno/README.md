@@ -16,7 +16,7 @@ Simply import Axios from GitHub, NPM, or wherever you have it installed, then us
 `generic` bundle, the Fetch adapter is used by default:
 
 ```js
-import axios from "https://axios.elide.dev/axios/1.2.1-fetch/beta3/generic/axios.mjs";
+import axios from "https://axios.elide.dev/axios/1.2.1-fetch/beta4/generic/axios.mjs";
 
 axios.get('https://...').then(/* ... */);
 ```
