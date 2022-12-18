@@ -1,15 +1,19 @@
-import axios from "axios/generic";
+import axios from "axios/generic/axios.mjs";
 
 const proxyTarget = 'axios-fetch.elide.dev';
 
-function applyCorsHeaders(headers) {
+function applyCorsHeaders(url, headers) {
     const mutable = new Headers(headers);
     mutable.set('Access-Control-Allow-Origin', '*');
     mutable.set('Access-Control-Allow-Methods', 'GET');
     mutable.set('Access-Control-Max-Age', '86400');
-    mutable.set('Content-Type', 'application/javascript');
     mutable.set('Cache-Control', 'public, max-age=31536000, s-max-age=31536000, immutable');
     mutable.set('Cross-Origin-Resource-Policy', 'cross-origin');
+    if (url.toString().endsWith('.map')) {
+        mutable.set('Content-Type', 'application/json');
+    } else {
+        mutable.set('Content-Type', 'application/javascript');
+    }
     return mutable;
 }
 
@@ -30,9 +34,9 @@ async function handler(request) {
         const response = await axios.get(url, {
             adapter: 'fetch',
             timeout: 1000,
-            responseType: 'text',
+            responseType: request.url.endsWith('.map') ? 'json' : 'text',
             headers: {
-                'Accept': 'application/javascript, text/javascript, */*',
+                'Accept': 'application/javascript, text/javascript, application/json, */*',
                 'Accept-Encoding': 'identity',
                 'Origin': url.origin,
             }
@@ -42,7 +46,7 @@ async function handler(request) {
         return new Response(response.data, {
             status: response.status,
             statusText: response.statusText,
-            headers: applyCorsHeaders(response.headers),
+            headers: applyCorsHeaders(url, response.headers),
         });
 
     } catch (err) {
@@ -53,7 +57,7 @@ async function handler(request) {
         );
         return new Response(`Error`, {
             status: 500,
-            headers: applyCorsHeaders(new Headers()),  // open up errors so that the user's console is accurate
+            headers: applyCorsHeaders(url, new Headers()),  // open up errors so that the user's console is accurate
         })
     }
 }
