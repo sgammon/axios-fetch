@@ -22,7 +22,8 @@ jobs:
         with:
           node-version: v18.x
           cache: npm
-      - run: npm install
+      - run: npm install && npm install -g wrangler
+      - run: cd examples/fetch/workers && npm install
       - name: "Publish: Worker"
         uses: cloudflare/wrangler-action@2.0.0
         with:
