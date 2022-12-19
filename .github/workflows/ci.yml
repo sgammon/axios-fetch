@@ -34,12 +34,12 @@ jobs:
           persist-credentials: false
       - name: "Setup: Deno v1.x (Build Version)"
         uses: denoland/setup-deno@v1
-        if: ${{ matrix.engine == 'deno' }}
+        if: ${{ matrix.mode == 'baseline' }}
         with:
           deno-version: v1.x
       - name: "Setup: Bun v0.3.x (Build Version)"
         uses: antongolub/action-setup-bun@v1
-        if: ${{ matrix.engine == 'bun' }}
+        if: ${{ matrix.mode == 'baseline' }}
         with:
           bun-version: 0.3.0
       - name: "Setup: Node v18.x (Build Version)"
