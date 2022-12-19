@@ -5,7 +5,7 @@ type MethodsHeaders = {
   [Key in axios.Method as Lowercase<Key>]: AxiosHeaders;
 };
 
-type FetchOptions = object;
+type FetchOptions = Omit<Omit<Omit<RequestInit, "body">, "headers">, "window">;
 
 type FetchURL = URL;
 
@@ -226,6 +226,8 @@ declare namespace axios {
     (config: AxiosRequestConfig): AxiosPromise;
   }
 
+  export const AxiosFetchAdapter : AxiosAdapter;
+
   interface AxiosBasicCredentials {
     username: string;
     password: string;
@@ -352,7 +354,9 @@ declare namespace axios {
 
   type AxiosAdapterConfig = AxiosAdapter | AxiosAdapterName;
 
-  type Fetcher = (input: FetchInput, init?: FetchOptions) => Promise<Response>;
+  export interface Fetcher {
+    (input: FetchInput, init?: FetchOptions): Promise<Response>;
+  }
 
   interface AxiosRequestConfig<D = any> {
     url?: string | FetchURL;
@@ -508,6 +512,7 @@ declare namespace axios {
     toFormData(sourceObj: object, targetFormData?: GenericFormData, options?: FormSerializerOptions): GenericFormData;
     formToJSON(form: GenericFormData|GenericHTMLFormElement): object;
     AxiosHeaders: typeof AxiosHeaders;
+    FetchAdapter: typeof AxiosFetchAdapter;
   }
 }
 
