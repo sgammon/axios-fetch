@@ -31,12 +31,12 @@
           document.getElementById('username').innerHTML = user.data.name;
           document.getElementById('orgs').innerHTML = orgs.data.map(function (org) {
             return (
-                    '<li class="row">' +
-                    '<img src="' + org.avatar_url + '" class="col-md-1"/>' +
-                    '<div class="col-md-3">' +
-                    '<strong>' + org.login + '</strong>' +
-                    '</div>' +
-                    '</li>'
+              '<li class="row">' +
+                '<img src="' + org.avatar_url + '" class="col-md-1"/>' +
+                '<div class="col-md-3">' +
+                  '<strong>' + org.login + '</strong>' +
+                '</div>' +
+              '</li>'
             );
           }).join('');
         }));
@@ -45,10 +45,10 @@
     </script>
 
     <script type="module">
-      import axios from "https://axios.elide.dev/axios/1.2.1-fetch/beta4/generic/axios.min.mjs";
+      import axios from "https://axios.elide.dev/axios/1.2.1-fetch-beta4/generic/axios.min.mjs";
       window.doTest(axios);
     </script>
-    <script nomodule src="https://axios.elide.dev/axios/1.2.1-fetch/beta4/axios.min.js"></script>
+    <script nomodule src="https://axios.elide.dev/axios/1.2.1-fetch-beta4/axios.min.js"></script>
     <script nomodule>
       window.doTest(axios);
     </script>

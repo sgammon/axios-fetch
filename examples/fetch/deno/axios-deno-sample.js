@@ -1,5 +1,5 @@
 
-import axios from "https://axios.elide.dev/axios/1.2.1-fetch/beta4/generic/axios.mjs";
+import axios from "https://axios.elide.dev/axios/1.2.1-fetch-beta4/generic/axios.mjs";
 import {assert, assertEquals, assertExists} from "https://deno.land/std@0.168.0/testing/asserts.ts";
 
 Deno.test("deno: axios fetch example", async (t) => {
