@@ -1,5 +1,5 @@
 import gulp from 'gulp';
-import fs from 'fs-extra';
+import rimraf from 'rimraf';
 import axios from './index.js';
 
 gulp.task('default', async function(){
@@ -7,7 +7,13 @@ gulp.task('default', async function(){
 });
 
 const clear = gulp.task('clear', async function() {
-  await fs.emptyDir('./dist/')
+  return await new Promise((accept, reject) => {
+    try {
+      rimraf('./dist/', accept);
+    } catch (err) {
+      reject(err);
+    }
+  })
 });
 
 const bower = gulp.task('bower', async function () {
