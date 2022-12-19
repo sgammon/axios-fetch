@@ -16,16 +16,61 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node-version: [12.x, 14.x, 16.x, 18.x]
+        version: [12.x]
+        runtime: [node]
+        include:
+          - version: 14.x
+            runtime: node
+          - version: 16.x
+            runtime: node
+          - version: 18.x
+            runtime: node
+            baseline: true
 
     steps:
-      - uses: actions/checkout@v3
+      - name: "Setup: Checkout"
+        uses: actions/checkout@v3
         with:
           persist-credentials: false
-      - name: Setup node
+      - name: "Setup: Deno v1.x (Build Version)"
+        uses: denoland/setup-deno@v1
+        if: ${{ matrix.engine == 'deno' }}
+        with:
+          deno-version: v1.x
+      - name: "Setup: Bun v0.3.x (Build Version)"
+        uses: antongolub/action-setup-bun@v1
+        if: ${{ matrix.engine == 'bun' }}
+        with:
+          bun-version: 0.3.0
+      - name: "Setup: Node v18.x (Build Version)"
         uses: actions/setup-node@v3
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: 18.x  # always build against Node v18.x where native fetch is available
           cache: npm
-      - run: npm install
-      - run: npm run test:node
+
+      ## For all builds: Install and build with stable Node runtime.
+      - name: "Setup: Install Dependencies"
+        run: npm install
+      - name: "Setup: Build Axios"
+        run: npm run build
+
+      ## For non-baseline builds: Switch to the runtime under test.
+      - name: "Setup: Test Runtime (${{ matrix.runtime }} / ${{ matrix.version }})"
+        run: nvm use ${{ matrix.node-version }}
+        if: ${{ !matrix.baseline }}
+
+      ## For all builds: Run Node tests.
+      - name: "Run Node Tests (${{ matrix.runtime }} / ${{ matrix.version }})"
+        run: npm run test:mocha
+
+      ## For baseline builds only, run the rest of the test-suite and report coverage.
+      - name: "Run all tests"
+        run: npm run test:all
+        if: ${{ matrix.baseline }}
+
+      - name: "Report: Coverage"
+        uses: codecov/codecov-action@v3
+        if: ${{ matrix.baseline }}
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          verbose: true
