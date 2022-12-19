@@ -45,7 +45,7 @@ jobs:
           cd dist/;
           mkdir -p "$RELEASE_VERSION/$RELEASE_TAG";
           mv ./axios*.* browser esm generic node "$RELEASE_VERSION/$RELEASE_TAG/";
-          cd "./$RELEASE_VERSION";
+          cd "./$RELEASE_VERSION/$RELEASE_TAG/";
           for target in **/*.*
           do
             CONTENT_TYPE="";
