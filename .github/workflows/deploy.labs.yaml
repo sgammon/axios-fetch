@@ -39,23 +39,22 @@ jobs:
         env:
           BUCKET: axios-fetch
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
-          RELEASE_TAG: ${{ github.event.inputs.release || 'latest' }}
           RELEASE_VERSION: ${{ steps.version.outputs.value }}
         run: |
           cd dist/;
-          mkdir -p "$RELEASE_VERSION/$RELEASE_TAG";
-          mv ./axios*.* browser esm generic node "$RELEASE_VERSION/$RELEASE_TAG/";
-          cd "./$RELEASE_VERSION/$RELEASE_TAG/";
-          for target in **/*.*
+          mkdir -p "release/$RELEASE_VERSION";
+          mv ./axios*.* browser esm generic node "release/$RELEASE_VERSION";
+          cd "./release";
+          for target in $RELEASE_VERSION/*.js* $RELEASE_VERSION/*/*.*
           do
             CONTENT_TYPE="";
             case $target in
+              *"map"*)
+                CONTENT_TYPE="application/json";;
               *"cjs"*)
                 CONTENT_TYPE="text/javascript";;
               *"mjs"*)
                 CONTENT_TYPE="text/javascript";;
-              *"map"*)
-                CONTENT_TYPE="application/json";;
               *"d.ts"*)
                 CONTENT_TYPE="text/x.typescript";;
               *"d.cts"*)
@@ -71,17 +70,18 @@ jobs:
             CONTENT_ENCODING="";
             case $target in
               *"br"*)
-                CONTENT_ENCODING="br";;
+                CONTENT_ENCODING="--content-encoding=br";;
               *"gz"*)
-                CONTENT_ENCODING="gzip";;
+                CONTENT_ENCODING="--content-encoding=gzip";;
               *)
             CONTENT_ENCODING="";;
             esac
 
             echo "Publishing $target (type: $CONTENT_TYPE / encoding: ${CONTENT_ENCODING:-identity})...";
             wrangler r2 object put \
-              "$BUCKET/axios/$RELEASE_VERSION/$target" \
+              "$BUCKET/axios/$target" \
               --file "$target" \
               --content-type "$CONTENT_TYPE" \
+              $CONTENT_ENCODING \
               --cache-control "public, max-age=3600, s-max-age=86400, immutable"
           done
