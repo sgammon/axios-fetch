@@ -1,5 +1,5 @@
 import buildURL from '../../../lib/helpers/buildURL';
-import URLSearchParams from 'url-search-params';
+import URLSearchParams from '@ungap/url-search-params';
 
 describe('helpers::buildURL', function () {
   it('should support null params', function () {
