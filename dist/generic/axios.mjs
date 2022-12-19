@@ -1,4 +1,4 @@
-// Axios v1.2.1-fetch-beta5 Copyright (c) 2022 Matt Zabriskie and contributors
+/// <reference types="./axios.d.ts" />
 function bind(fn, thisArg) {
   return function wrap() {
     return fn.apply(thisArg, arguments);
@@ -280,9 +280,9 @@ function findKey(obj, key) {
   return null;
 }
 
-const _global = typeof self === "undefined" ? typeof global === "undefined" ? undefined : global : self;
+const _global$1 = typeof self === "undefined" ? typeof global === "undefined" ? undefined : global : self;
 
-const isContextDefined = (context) => !isUndefined(context) && context !== _global;
+const isContextDefined = (context) => !isUndefined(context) && context !== _global$1;
 
 /**
  * Accepts varargs expecting each argument to be an object, then
@@ -672,7 +672,7 @@ const utils = {
   noop,
   toFiniteNumber,
   findKey,
-  global: _global,
+  global: _global$1,
   isContextDefined,
   toJSONObject
 };
@@ -1184,81 +1184,43 @@ const transitionalDefaults = {
 
 const URLSearchParams$1 = typeof URLSearchParams !== 'undefined' ? URLSearchParams : AxiosURLSearchParams;
 
-// In browser environments, we directly use the native Fetch API implementation, attached at `window`.
+const AbortController$1 = AbortController;
 
-const FetchHeaders = window.Headers;
-const FetchRequest = window.Request;
-const FetchResponse = window.Response;
-const fetcher = window.fetch;
+const _global = (
+    typeof self === "undefined" ?
+    typeof global === "undefined" ?
+    typeof globalThis === "undefined" ?
+    globalThis :
+    undefined :
+    global :
+    self
+);
 
-/**
- * Determine if we're running in a standard browser environment
- *
- * This allows axios to run in a web worker, and react-native.
- * Both environments support XMLHttpRequest, but not fully standard globals.
- *
- * web workers:
- *  typeof window -> undefined
- *  typeof document -> undefined
- *
- * react-native:
- *  navigator.product -> 'ReactNative'
- * nativescript
- *  navigator.product -> 'NativeScript' or 'NS'
- *
- * @returns {boolean}
- */
-const isStandardBrowserEnv = (() => {
-  let product;
-  if (typeof navigator !== 'undefined' && (
-    (product = navigator.product) === 'ReactNative' ||
-    product === 'NativeScript' ||
-    product === 'NS')
-  ) {
-    return false;
-  }
+// In generic/pure-JS environments (Cloudflare Workers, Bun, Deno), we use globals which are expected to exist.
 
-  return typeof window !== 'undefined' && typeof document !== 'undefined';
-})();
+const FetchHeaders = _global.Headers;
+const FetchRequest = _global.Request;
+const FetchResponse = _global.Response;
+const fetcher = _global.fetch;
 
-/**
- * Determine if we're running in a standard browser webWorker environment
- *
- * Although the `isStandardBrowserEnv` method indicates that
- * `allows axios to run in a web worker`, the WebWorker will still be
- * filtered out due to its judgment standard
- * `typeof window !== 'undefined' && typeof document !== 'undefined'`.
- * This leads to a problem when axios post `FormData` in webWorker
- */
- const isStandardBrowserWebWorkerEnv = (() => {
-  return (
-    typeof WorkerGlobalScope !== 'undefined' &&
-    // eslint-disable-next-line no-undef
-    self instanceof WorkerGlobalScope &&
-    typeof self.importScripts === 'function'
-  );
-})();
-
-
+// Exports for a generic Fetch API-supporting JS environment.
 const platform = {
-  isBrowser: true,
-  isGenericJs: true,  // browser is a superset of generic JS
-  knownAdapters: ['xhr', 'fetch'],
+  isGenericJs: true,
+  isStandardBrowserEnv: false,
+  knownAdapters: ['fetch'],
   defaultFetchOptions: {
-    cache: 'default',
     redirect: 'follow'
   },
   classes: {
     URLSearchParams: URLSearchParams$1,
     FormData: FormData$1,
-    Blob,
     Request: FetchRequest,
     Response: FetchResponse,
-    Headers: FetchHeaders
+    Headers: FetchHeaders,
+    AbortController: AbortController$1,
+    Blob: typeof Blob !== 'undefined' && Blob || null
   },
-  isStandardBrowserEnv,
-  isStandardBrowserWebWorkerEnv,
-  protocols: ['http', 'https', 'file', 'blob', 'url', 'data']
+  protocols: ['http', 'https', 'blob', 'url', 'data']
 };
 
 function toURLEncodedForm(data, options) {
@@ -1895,7 +1857,7 @@ utils.inherits(CanceledError$1, AxiosError$1, {
 });
 
 // eslint-disable-next-line strict
-const httpAdapter = null;
+const xhrAdapter = null;
 
 /**
  * Resolve or reject a Promise based on response status.
@@ -1920,54 +1882,6 @@ function settle(resolve, reject, response) {
     ));
   }
 }
-
-const cookies = platform.isStandardBrowserEnv ?
-
-// Standard browser envs support document.cookie
-  (function standardBrowserEnv() {
-    return {
-      write: function write(name, value, expires, path, domain, secure) {
-        const cookie = [];
-        cookie.push(name + '=' + encodeURIComponent(value));
-
-        if (utils.isNumber(expires)) {
-          cookie.push('expires=' + new Date(expires).toGMTString());
-        }
-
-        if (utils.isString(path)) {
-          cookie.push('path=' + path);
-        }
-
-        if (utils.isString(domain)) {
-          cookie.push('domain=' + domain);
-        }
-
-        if (secure === true) {
-          cookie.push('secure');
-        }
-
-        document.cookie = cookie.join('; ');
-      },
-
-      read: function read(name) {
-        const match = document.cookie.match(new RegExp('(^|;\\s*)(' + name + ')=([^;]*)'));
-        return (match ? decodeURIComponent(match[3]) : null);
-      },
-
-      remove: function remove(name) {
-        this.write(name, '', Date.now() - 86400000);
-      }
-    };
-  })() :
-
-// Non standard browser env (web workers, react-native) lack needed support.
-  (function nonStandardBrowserEnv() {
-    return {
-      write: function write() {},
-      read: function read() { return null; },
-      remove: function remove() {}
-    };
-  })();
 
 /**
  * Determines whether the specified URL is absolute
@@ -2115,361 +2029,10 @@ function buildFullPath(baseURL, requestedURL) {
   return requestedURL;
 }
 
-const isURLSameOrigin = platform.isStandardBrowserEnv ?
-
-// Standard browser envs have full support of the APIs needed to test
-// whether the request URL is of the same origin as current location.
-  (function standardBrowserEnv() {
-    const msie = /(msie|trident)/i.test(navigator.userAgent);
-    const urlParsingNode = document.createElement('a');
-    let originURL;
-
-    /**
-    * Parse a URL to discover it's components
-    *
-    * @param {String} url The URL to be parsed
-    * @returns {Object}
-    */
-    function resolveURL(url) {
-      let href = url;
-
-      if (msie) {
-        // IE needs attribute set twice to normalize properties
-        urlParsingNode.setAttribute('href', href);
-        href = urlParsingNode.href;
-      }
-
-      urlParsingNode.setAttribute('href', href);
-
-      // urlParsingNode provides the UrlUtils interface - http://url.spec.whatwg.org/#urlutils
-      return {
-        href: urlParsingNode.href,
-        protocol: urlParsingNode.protocol ? urlParsingNode.protocol.replace(/:$/, '') : '',
-        host: urlParsingNode.host,
-        search: urlParsingNode.search ? urlParsingNode.search.replace(/^\?/, '') : '',
-        hash: urlParsingNode.hash ? urlParsingNode.hash.replace(/^#/, '') : '',
-        hostname: urlParsingNode.hostname,
-        port: urlParsingNode.port,
-        pathname: (urlParsingNode.pathname.charAt(0) === '/') ?
-          urlParsingNode.pathname :
-          '/' + urlParsingNode.pathname
-      };
-    }
-
-    originURL = resolveURL(window.location.href);
-
-    /**
-    * Determine if a URL shares the same origin as the current location
-    *
-    * @param {String} requestURL The URL to test
-    * @returns {boolean} True if URL shares the same origin, otherwise false
-    */
-    return function isURLSameOrigin(requestURL) {
-      const parsed = (utils.isString(requestURL)) ? resolveURL(requestURL) : requestURL;
-      return (parsed.protocol === originURL.protocol &&
-          parsed.host === originURL.host);
-    };
-  })() :
-
-  // Non standard browser envs (web workers, react-native) lack needed support.
-  (function nonStandardBrowserEnv() {
-    return function isURLSameOrigin() {
-      return true;
-    };
-  })();
-
 function parseProtocol(url) {
   const match = /^([-+\w]{1,25})(:?\/\/|:)/.exec(url);
   return match && match[1] || '';
 }
-
-/**
- * Calculate data maxRate
- * @param {Number} [samplesCount= 10]
- * @param {Number} [min= 1000]
- * @returns {Function}
- */
-function speedometer(samplesCount, min) {
-  samplesCount = samplesCount || 10;
-  const bytes = new Array(samplesCount);
-  const timestamps = new Array(samplesCount);
-  let head = 0;
-  let tail = 0;
-  let firstSampleTS;
-
-  min = min !== undefined ? min : 1000;
-
-  return function push(chunkLength) {
-    const now = Date.now();
-
-    const startedAt = timestamps[tail];
-
-    if (!firstSampleTS) {
-      firstSampleTS = now;
-    }
-
-    bytes[head] = chunkLength;
-    timestamps[head] = now;
-
-    let i = tail;
-    let bytesCount = 0;
-
-    while (i !== head) {
-      bytesCount += bytes[i++];
-      i = i % samplesCount;
-    }
-
-    head = (head + 1) % samplesCount;
-
-    if (head === tail) {
-      tail = (tail + 1) % samplesCount;
-    }
-
-    if (now - firstSampleTS < min) {
-      return;
-    }
-
-    const passed = startedAt && now - startedAt;
-
-    return passed ? Math.round(bytesCount * 1000 / passed) : undefined;
-  };
-}
-
-function progressEventReducer(listener, isDownloadStream) {
-  let bytesNotified = 0;
-  const _speedometer = speedometer(50, 250);
-
-  return e => {
-    const loaded = e.loaded;
-    const total = e.lengthComputable ? e.total : undefined;
-    const progressBytes = loaded - bytesNotified;
-    const rate = _speedometer(progressBytes);
-    const inRange = loaded <= total;
-
-    bytesNotified = loaded;
-
-    const data = {
-      loaded,
-      total,
-      progress: total ? (loaded / total) : undefined,
-      bytes: progressBytes,
-      rate: rate ? rate : undefined,
-      estimated: rate && total && inRange ? (total - loaded) / rate : undefined,
-      event: e
-    };
-
-    data[isDownloadStream ? 'download' : 'upload'] = true;
-
-    listener(data);
-  };
-}
-
-const isXHRAdapterSupported = typeof XMLHttpRequest !== 'undefined';
-
-const xhrAdapter = isXHRAdapterSupported && function (config) {
-  return new Promise(function dispatchXhrRequest(resolve, reject) {
-    let requestData = config.data;
-    const requestHeaders = AxiosHeaders$2.from(config.headers).normalize();
-    const responseType = config.responseType;
-    let onCanceled;
-    function done() {
-      if (config.cancelToken) {
-        config.cancelToken.unsubscribe(onCanceled);
-      }
-
-      if (config.signal) {
-        config.signal.removeEventListener('abort', onCanceled);
-      }
-    }
-
-    if (utils.isFormData(requestData) && (platform.isStandardBrowserEnv || platform.isStandardBrowserWebWorkerEnv)) {
-      requestHeaders.setContentType(false); // Let the browser set it
-    }
-
-    let request = new XMLHttpRequest();
-
-    // HTTP basic authentication
-    if (config.auth) {
-      const username = config.auth.username || '';
-      const password = config.auth.password ? unescape(encodeURIComponent(config.auth.password)) : '';
-      requestHeaders.set('Authorization', 'Basic ' + btoa(username + ':' + password));
-    }
-
-    const fullPath = buildFullPath(config.baseURL, config.url);
-
-    request.open(config.method.toUpperCase(), buildURL(fullPath, config.params, config.paramsSerializer), true);
-
-    // Set the request timeout in MS
-    request.timeout = config.timeout;
-
-    function onloadend() {
-      if (!request) {
-        return;
-      }
-      // Prepare the response
-      const responseHeaders = AxiosHeaders$2.from(
-        'getAllResponseHeaders' in request && request.getAllResponseHeaders()
-      );
-      const responseData = !responseType || responseType === 'text' || responseType === 'json' ?
-        request.responseText : request.response;
-      const response = {
-        data: responseData,
-        status: request.status,
-        statusText: request.statusText,
-        headers: responseHeaders,
-        config,
-        request
-      };
-
-      settle(function _resolve(value) {
-        resolve(value);
-        done();
-      }, function _reject(err) {
-        reject(err);
-        done();
-      }, response);
-
-      // Clean up request
-      request = null;
-    }
-
-    if ('onloadend' in request) {
-      // Use onloadend if available
-      request.onloadend = onloadend;
-    } else {
-      // Listen for ready state to emulate onloadend
-      request.onreadystatechange = function handleLoad() {
-        if (!request || request.readyState !== 4) {
-          return;
-        }
-
-        // The request errored out and we didn't get a response, this will be
-        // handled by onerror instead
-        // With one exception: request that using file: protocol, most browsers
-        // will return status as 0 even though it's a successful request
-        if (request.status === 0 && !(request.responseURL && request.responseURL.indexOf('file:') === 0)) {
-          return;
-        }
-        // readystate handler is calling before onerror or ontimeout handlers,
-        // so we should call onloadend on the next 'tick'
-        setTimeout(onloadend);
-      };
-    }
-
-    // Handle browser request cancellation (as opposed to a manual cancellation)
-    request.onabort = function handleAbort() {
-      if (!request) {
-        return;
-      }
-
-      reject(new AxiosError$1('Request aborted', AxiosError$1.ECONNABORTED, config, request));
-
-      // Clean up request
-      request = null;
-    };
-
-    // Handle low level network errors
-    request.onerror = function handleError() {
-      // Real errors are hidden from us by the browser
-      // onerror should only fire if it's a network error
-      reject(new AxiosError$1('Network Error', AxiosError$1.ERR_NETWORK, config, request));
-
-      // Clean up request
-      request = null;
-    };
-
-    // Handle timeout
-    request.ontimeout = function handleTimeout() {
-      let timeoutErrorMessage = config.timeout ? 'timeout of ' + config.timeout + 'ms exceeded' : 'timeout exceeded';
-      const transitional = config.transitional || transitionalDefaults;
-      if (config.timeoutErrorMessage) {
-        timeoutErrorMessage = config.timeoutErrorMessage;
-      }
-      reject(new AxiosError$1(
-        timeoutErrorMessage,
-        transitional.clarifyTimeoutError ? AxiosError$1.ETIMEDOUT : AxiosError$1.ECONNABORTED,
-        config,
-        request));
-
-      // Clean up request
-      request = null;
-    };
-
-    // Add xsrf header
-    // This is only done if running in a standard browser environment.
-    // Specifically not if we're in a web worker, or react-native.
-    if (platform.isStandardBrowserEnv) {
-      // Add xsrf header
-      const xsrfValue = (config.withCredentials || isURLSameOrigin(fullPath))
-        && config.xsrfCookieName && cookies.read(config.xsrfCookieName);
-
-      if (xsrfValue) {
-        requestHeaders.set(config.xsrfHeaderName, xsrfValue);
-      }
-    }
-
-    // Remove Content-Type if data is undefined
-    requestData === undefined && requestHeaders.setContentType(null);
-
-    // Add headers to the request
-    if ('setRequestHeader' in request) {
-      utils.forEach(requestHeaders.toJSON(), function setRequestHeader(val, key) {
-        request.setRequestHeader(key, val);
-      });
-    }
-
-    // Add withCredentials to request if needed
-    if (!utils.isUndefined(config.withCredentials)) {
-      request.withCredentials = !!config.withCredentials;
-    }
-
-    // Add responseType to request if needed
-    if (responseType && responseType !== 'json') {
-      request.responseType = config.responseType;
-    }
-
-    // Handle progress if needed
-    if (typeof config.onDownloadProgress === 'function') {
-      request.addEventListener('progress', progressEventReducer(config.onDownloadProgress, true));
-    }
-
-    // Not all browsers support upload events
-    if (typeof config.onUploadProgress === 'function' && request.upload) {
-      request.upload.addEventListener('progress', progressEventReducer(config.onUploadProgress));
-    }
-
-    if (config.cancelToken || config.signal) {
-      // Handle cancellation
-      // eslint-disable-next-line func-names
-      onCanceled = cancel => {
-        if (!request) {
-          return;
-        }
-        reject(!cancel || cancel.type ? new CanceledError$1(null, config, request) : cancel);
-        request.abort();
-        request = null;
-      };
-
-      config.cancelToken && config.cancelToken.subscribe(onCanceled);
-      if (config.signal) {
-        config.signal.aborted ? onCanceled() : config.signal.addEventListener('abort', onCanceled);
-      }
-    }
-
-    const protocol = parseProtocol(fullPath);
-
-    if (protocol && platform.protocols.indexOf(protocol) === -1) {
-      reject(new AxiosError$1('Unsupported protocol ' + protocol + ':', AxiosError$1.ERR_BAD_REQUEST, config));
-      return;
-    }
-
-
-    // Send the request
-    request.send(requestData || null);
-  });
-};
-
-const AbortController$1 = AbortController;
 
 const defaultFetchResponseType = 'json';
 
@@ -2623,15 +2186,6 @@ function dispatchFetch(config, resolve, reject) {
   let parsedUrl = config.parsedUrl;
   if (!parsedUrl && !(fullPath.startsWith('/') && !fullPath.startsWith('//'))) {
     try {
-      // we are unable to parse the URL if it (1) is a relative URL, or (2) is a malformed URL to begin with. to avoid
-      // #1 causing an error, we can make an attempt here to use the current window origin as a relative base; this will
-      // only work in browsers, though, so we need to be careful to check that we have an origin in the first place.
-      if (platform.isStandardBrowserEnv) {
-        // origin = `https://domain.com` (protocol + host + port if non-standard)
-        // fullPath = `/foo/bar` (relative path)
-        // `fullPath = https://domain.com/foo/bar`
-        fullPath = window.location.origin + fullPath;
-      }
       parsedUrl = new URL(fullPath);
     } catch (urlParseErr) {
       console.error('[axios:fetch] URL parse error: ', urlParseErr);
@@ -2837,8 +2391,6 @@ function configFromURL(url, config) {
 function isRequest(thing) {
   if (platform.isNode) {
     return thing instanceof FetchRequest;
-  } else if (platform.isStandardBrowserEnv) {
-    return thing instanceof (window.Request);
   } else {
     return thing instanceof FetchRequest;
   }
@@ -2872,7 +2424,7 @@ function fetchAdapter(config) {
 }
 
 const knownAdapters = {
-  http: httpAdapter,
+  http: xhrAdapter,
   xhr: xhrAdapter,
   fetch: fetchAdapter
 };
@@ -3744,4 +3296,5 @@ const {
 } = axios$1;
 
 export { Axios, AxiosError, AxiosHeaders, Cancel, CancelToken, CanceledError, FetchAdapter, HttpStatusCode, VERSION, all, axios$1 as default, formToJSON, isAxiosError, isCancel, mergeConfig, spread, toFormData };
-//# sourceMappingURL=https://axios.elide.dev/axios/1.2.1-fetch-beta5/esm/axios.js.map
+// Axios v1.2.1-fetch-beta5 Copyright (c) 2022 Matt Zabriskie and contributors
+//# sourceMappingURL=https://axios.elide.dev/axios/1.2.1-fetch-beta5/generic/axios.mjs.map
