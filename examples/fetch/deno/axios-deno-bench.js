@@ -1,5 +1,5 @@
 
-import axios from "https://axios.elide.dev/axios/1.2.1-fetch-beta4/generic/axios.mjs";
+import axios from "https://axios.elide.dev/axios/1.2.1-fetch-beta5/generic/axios.mjs";
 import _testHelpers from "../../../test/fetch/fetch_helpers.js";
 import {assertEquals, assertExists} from "https://deno.land/std@0.168.0/testing/asserts.ts";
 

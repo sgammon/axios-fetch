@@ -87,7 +87,7 @@ Using the ESM bundle is easy. For example:
 
 **Environments that support remote ESM bundles (e.g. Deno):**
 ```js
-import axios from 'https://axios.elide.dev/axios/1.2.1-fetch-beta4/generic/axios.min.mjs';
+import axios from 'https://axios.elide.dev/axios/1.2.1-fetch-beta5/generic/axios.min.mjs';
 
 // use axios as normal
 ```
