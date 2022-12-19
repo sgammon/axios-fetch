@@ -57,7 +57,7 @@ jobs:
       ## For non-baseline builds: Switch to the runtime under test.
       - name: "Setup: Test Runtime (${{ matrix.runtime }} / ${{ matrix.version }})"
         shell: bash -l {0}
-        run: nvm use ${{ matrix.node-version }}
+        run: nvm install ${{ matrix.version }} && nvm use ${{ matrix.version }}
         if: ${{ matrix.mode != 'baseline' }}
 
       ## For all builds: Run Node tests.
