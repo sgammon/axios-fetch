@@ -66,6 +66,10 @@ jobs:
         run: npm run test:mocha
 
       ## For baseline builds only, run the rest of the test-suite and report coverage.
+      - name: "Install full-test dependencies (Baseline-only)"
+        run: sudo npx playwright install-deps
+        if: ${{ matrix.mode == 'baseline' }}
+
       - name: "Run all tests"
         run: npm run test:all
         if: ${{ matrix.mode == 'baseline' }}
