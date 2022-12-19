@@ -49,6 +49,9 @@
       "browser": "./test/fetch/browser/fetch.browser.spec.js",
       "deno": "./test/fetch/deno/fetch.deno.spec.js",
       "default": "./test/fetch/generic/fetch.generic.spec.js"
+    },
+    "#testing": {
+      "default": "./test/abstract.esm.mjs"
     }
   },
   "exports": {
@@ -120,7 +123,7 @@
     "test:workers": "echo \"Workers test not implemented yet.\"",
     "test:karma": "npm run test:browser",
     "test:browser": "node bin/ssl_hotfix.js cross-env LISTEN_ADDR=:: karma start karma.conf.cjs --single-run",
-    "test:browser:modern": "node bin/ssl_hotfix.js wtr test/fetch/generic/harness.html --playwright --browsers chromium firefox webkit",
+    "test:browser:modern": "node bin/ssl_hotfix.js wtr test/fetch/generic/harness.html test/**/*.spec.mjs --playwright --browsers chromium firefox webkit",
     "test:karma:server": "node bin/ssl_hotfix.js cross-env karma start karma.conf.cjs",
     "test:build:version": "node ./bin/check-build-version.js",
     "start": "node ./sandbox/server.js",
@@ -209,6 +212,7 @@
     "karma-sourcemap-loader": "^0.3.8",
     "minimist": "^1.2.6",
     "mocha": "^10.0.0",
+    "mock-xmlhttprequest": "^8.1.0",
     "multer": "1.4.5-lts.1",
     "proxy-from-env": "^1.1.0",
     "release-it": "^15.5.1",
