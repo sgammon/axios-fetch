@@ -106,16 +106,16 @@ import axios from "axios/dist/generic/axios.mjs";
 See below. If your environment is not listed, you can still use Axios with Fetch, but you will need to use one of the
 other bundle types (`browser`, `node`, `esm`, etc).
 
-| Environment          | Supported?                 | Notes                                                 |
-|----------------------|----------------------------|-------------------------------------------------------|
-| Modern browsers      | ✅ Tested continuously      | **Note:** Generic bundle does not ship an XHR adapter |
-| Node `v18.x+`        | ✅ Tested continuously      |                                                       |
-| Deno `v1.x`          | ✅ Tested continuously      |                                                       |
-| CloudFlare Workers   | ✅ Tested locally           |                                                       |
-| Bun                  | ⚠️ Not tested              |                                                       |
-| Node `v17.x`         | ⚠️ Behind a flag           |                                                       |
-| Node `v12.x`-`v17.x` | ⛔️ Use the Node bundle[^1] |                                                       |
-| Node pre-`v12.x`     | ⛔ No support for ESM       |                                                       |
+| Environment          | Supported?               | Notes                                                 |
+|----------------------|--------------------------|-------------------------------------------------------|
+| Modern browsers      | ✅ Tested continuously    | **Note:** Generic bundle does not ship an XHR adapter |
+| Node `v18.x+`        | ✅ Tested continuously    |                                                       |
+| Deno `v1.x`          | ✅ Tested continuously    |                                                       |
+| CloudFlare Workers   | ✅ Tested locally         |                                                       |
+| Bun                  | ⚠️ Not tested            |                                                       |
+| Node `v17.x`         | ⚠️ Behind a flag         |                                                       |
+| Node `v12.x`-`v17.x` | ⛔️ Use the Node bundle   |                                                       |
+| Node pre-`v12.x`     | ⛔ No support for ESM[^1] |                                                       |
 
 ## Available samples
 
@@ -178,5 +178,7 @@ To run the Fetch examples:
 [25]: https://developers.cloudflare.com/workers//runtime-apis/request#requestinit
 
 [^1]: Node JS before `v18.x` considers `fetch` experimental. Node before `v17.x` does not have a native `fetch`
-      implementation. Without a native implementation, the regular `node` bundle should be used instead of the generic
-      bundle, which ships support for Node's [`http`](https://nodejs.org/dist/latest-v12.x/docs/api/http.html) API.
+      implementation. Without a native implementation in Node, there are two options to use Axios:
+      - (1) If you are using at least Node `v12.x`, you have support for ESM, and should use the `esm` bundle.
+      - (2) If you don't want to use ESM or can't use it, the regular `node` bundle should be used instead.
+      These bundles ship with support for Node's [`http`](https://nodejs.org/dist/latest-v12.x/docs/api/http.html) API.
