@@ -16,14 +16,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        version: [12.x]
+        version: [12]
         runtime: [node]
         include:
-          - version: 14.x
+          - version: 14
             runtime: node
-          - version: 16.x
+          - version: 16
             runtime: node
-          - version: 18.x
+          - version: 18
             runtime: node
             mode: baseline
 
@@ -51,8 +51,9 @@ jobs:
       ## For all builds: Install and build with stable Node runtime.
       - name: "Setup: Install Dependencies"
         run: npm install
-      - name: "Setup: Build Axios"
+      - name: "Setup: Build Axios (Baseline-only)"
         run: npm run build
+        if: ${{ matrix.mode == 'baseline' }}
 
       ## For non-baseline builds: Switch to the runtime under test.
       - name: "Setup: Test Runtime (${{ matrix.runtime }} / ${{ matrix.version }})"
