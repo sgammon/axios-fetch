@@ -15,6 +15,7 @@ const outputFileName = 'axios';
 const name = "axios";
 const namedInput = './index.js';
 const defaultInput = './lib/axios.js';
+const sanitizeConsole = false;
 
 const lib = JSON.parse(
     await readFile(
@@ -102,7 +103,7 @@ const buildConfig = ({
         sourceMap: true,
         compress: {
           dead_code: true,
-          drop_console: true,
+          drop_console: sanitizeConsole,
           drop_debugger: true,
           ecma: 2021,
           passes: 3,
