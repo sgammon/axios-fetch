@@ -25,7 +25,7 @@ jobs:
             runtime: node
           - version: 18.x
             runtime: node
-            baseline: true
+            mode: baseline
 
     steps:
       - name: "Setup: Checkout"
@@ -58,7 +58,7 @@ jobs:
       - name: "Setup: Test Runtime (${{ matrix.runtime }} / ${{ matrix.version }})"
         shell: bash -l {0}
         run: nvm use ${{ matrix.node-version }}
-        if: ${{ !matrix.baseline }}
+        if: ${{ matrix.mode != 'baseline' }}
 
       ## For all builds: Run Node tests.
       - name: "Run Node Tests (${{ matrix.runtime }} / ${{ matrix.version }})"
@@ -67,11 +67,11 @@ jobs:
       ## For baseline builds only, run the rest of the test-suite and report coverage.
       - name: "Run all tests"
         run: npm run test:all
-        if: ${{ matrix.baseline }}
+        if: ${{ matrix.mode == 'baseline' }}
 
       - name: "Report: Coverage"
         uses: codecov/codecov-action@v3
-        if: ${{ matrix.baseline }}
+        if: ${{ matrix.mode == 'baseline' }}
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           verbose: true
