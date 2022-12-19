@@ -75,7 +75,7 @@ const buildConfig = ({
       interop: browser ? 'default' : 'esModule',
       generatedCode: pure ? 'es2015' : 'es5',
       externalLiveBindings: pure ? false : undefined,
-      sourcemapBaseUrl: `https://axios-fetch.elide.dev/axios/${lib.version || 'latest'}/${bundleType}`,
+      sourcemapBaseUrl: `https://axios.elide.dev/axios/${lib.version || 'latest'}/${bundleType}`,
     },
     treeshake: pure ? {
       preset: 'smallest',
