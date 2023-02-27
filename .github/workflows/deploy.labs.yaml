@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     name: Deploy to CloudFlare
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Setup node
         uses: actions/setup-node@v3
         with:
