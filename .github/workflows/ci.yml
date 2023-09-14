@@ -76,7 +76,7 @@ jobs:
         if: ${{ matrix.mode == 'baseline' }}
 
       - name: "Report: Coverage"
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         if: ${{ matrix.mode == 'baseline' }}
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
