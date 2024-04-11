@@ -529,7 +529,7 @@ const toCamelCase = str => {
 };
 
 /* Creating a function that will check if an object has a property. */
-const hasOwnProperty = (({hasOwnProperty}) => (obj, prop) => hasOwnProperty.call(obj, prop))(Object.prototype);
+const _hasOwnProperty = (({hasOwnProperty}) => (obj, prop) => hasOwnProperty.call(obj, prop))(Object.prototype);
 
 /**
  * Determine if a value is a RegExp object
@@ -708,8 +708,8 @@ var utils$1 = {
   forEachEntry,
   matchAll,
   isHTMLForm,
-  hasOwnProperty,
-  hasOwnProp: hasOwnProperty, // an alias to avoid ESLint no-prototype-builtins detection
+  hasOwnProperty: _hasOwnProperty,
+  hasOwnProp: _hasOwnProperty, // an alias to avoid ESLint no-prototype-builtins detection
   reduceDescriptors,
   freezeMethods,
   toObjectSet,
@@ -822,8 +822,7 @@ AxiosError.from = (error, code, config, request, response, customProps) => {
   return axiosError;
 };
 
-// eslint-disable-next-line strict
-var httpAdapter = null;
+var FormData$1 = typeof FormData !== 'undefined' ? FormData : null;
 
 /**
  * Determines if the given thing is a array or js object.
@@ -909,7 +908,7 @@ function toFormData(obj, formData, options) {
   }
 
   // eslint-disable-next-line no-param-reassign
-  formData = formData || new (FormData)();
+  formData = formData || new (FormData$1 || FormData)();
 
   // eslint-disable-next-line no-param-reassign
   options = utils$1.toFlatObject(options, {
@@ -1222,22 +1221,6 @@ var transitionalDefaults = {
   clarifyTimeoutError: false
 };
 
-var URLSearchParams$1 = typeof URLSearchParams !== 'undefined' ? URLSearchParams : AxiosURLSearchParams;
-
-var FormData$1 = typeof FormData !== 'undefined' ? FormData : null;
-
-var Blob$1 = typeof Blob !== 'undefined' ? Blob : null;
-
-var platform$1 = {
-  isBrowser: true,
-  classes: {
-    URLSearchParams: URLSearchParams$1,
-    FormData: FormData$1,
-    Blob: Blob$1
-  },
-  protocols: ['http', 'https', 'file', 'blob', 'url', 'data']
-};
-
 const hasBrowserEnv = typeof window !== 'undefined' && typeof document !== 'undefined';
 
 /**
@@ -1286,6 +1269,36 @@ var utils = /*#__PURE__*/Object.freeze({
   hasStandardBrowserWebWorkerEnv: hasStandardBrowserWebWorkerEnv,
   hasStandardBrowserEnv: hasStandardBrowserEnv
 });
+
+var URLSearchParams$1 = typeof URLSearchParams !== 'undefined' ? URLSearchParams : AxiosURLSearchParams;
+
+var Blob$1 = typeof Blob !== 'undefined' ? Blob : null;
+
+// In browser environments, we directly use the native Fetch API implementation, attached at `window`.
+
+const FetchHeaders = window.Headers;
+const FetchRequest = window.Request;
+const FetchResponse = window.Response;
+const fetcher = window.fetch;
+
+var platform$1 = {
+  isBrowser: true,
+  isGenericJs: true,  // browser is a superset of generic JS
+  knownAdapters: ['xhr', 'fetch'],
+  defaultFetchOptions: {
+    cache: 'default',
+    redirect: 'follow'
+  },
+  classes: {
+    URLSearchParams: URLSearchParams$1,
+    FormData: FormData$1,
+    Blob: Blob$1,
+    Request: FetchRequest,
+    Response: FetchResponse,
+    Headers: FetchHeaders
+  },
+  protocols: ['http', 'https', 'file', 'blob', 'url', 'data']
+};
 
 var platform = {
   ...utils,
@@ -1421,11 +1434,8 @@ function stringifySafely(rawValue, parser, encoder) {
 }
 
 const defaults = {
-
   transitional: transitionalDefaults,
-
-  adapter: ['xhr', 'http'],
-
+  adapter: platform.knownAdapters || ['xhr', 'http', 'fetch'],
   transformRequest: [function transformRequest(data, headers) {
     const contentType = headers.getContentType() || '';
     const hasJSONContentType = contentType.indexOf('application/json') > -1;
@@ -1533,7 +1543,15 @@ const defaults = {
       'Accept': 'application/json, text/plain, */*',
       'Content-Type': undefined
     }
-  }
+  },
+
+  fetcher: null,
+
+  fetchOptions: platform.defaultFetchOptions || {
+    redirect: 'follow'
+  },
+
+  parsedUrl: null,
 };
 
 utils$1.forEach(['delete', 'get', 'head', 'post', 'put', 'patch'], (method) => {
@@ -1934,6 +1952,9 @@ utils$1.inherits(CanceledError, AxiosError, {
   __CANCEL__: true
 });
 
+// eslint-disable-next-line strict
+var httpAdapter = null;
+
 /**
  * Resolve or reject a Promise based on response status.
  *
@@ -2012,6 +2033,33 @@ function isAbsoluteURL(url) {
 }
 
 /**
+ * Trim `n` slashes from the start or `end` of a `subject` string.
+ *
+ * @param {!string} subject String to trim slashes from.
+ * @param {boolean=} opt_end Whether to trim from the end of the string. If not passed or passed as `false`, the start
+ *   of the string is inspected instead.
+ * @return {!string} String with slashes trimmed from either the start or end of the string.
+ */
+function trimSlashes(subject, opt_end) {
+  const originalLength = subject.length;
+  const getSubjectChar = () => subject.charAt(opt_end === true ? subject.length - 1 : 0);
+  const trimOne = () => subject = opt_end === true ? subject.slice(0, subject.length - 1) : subject.slice(1);
+
+  let char = getSubjectChar();
+  let iterations = 0;
+
+  while (char === '/') {
+    iterations++;
+    trimOne();
+    char = getSubjectChar();
+    if (iterations > originalLength) {
+      break;  // shouldn't infinite loop, but this protection guarantees it won't look past the length of the string
+    }
+  }
+  return subject;
+}
+
+/**
  * Creates a new URL by combining the specified URLs
  *
  * @param {string} baseURL The base URL
@@ -2021,7 +2069,7 @@ function isAbsoluteURL(url) {
  */
 function combineURLs(baseURL, relativeURL) {
   return relativeURL
-    ? baseURL.replace(/\/?\/$/, '') + '/' + relativeURL.replace(/^\/+/, '')
+    ? baseURL.replace(/\/?\/$/, '') + '/' + trimSlashes(relativeURL.replace(/^\/+/, ''))
     : baseURL;
 }
 
@@ -2407,12 +2455,403 @@ var xhrAdapter = isXHRAdapterSupported && function (config) {
   });
 };
 
-const knownAdapters = {
-  http: httpAdapter,
-  xhr: xhrAdapter
+var AbortController$1 = AbortController;
+
+const defaultFetchResponseType = 'json';
+
+const plainMime = 'text/plain';
+const contentTypeHeader = 'Content-Type';
+const contentLengthHeader = 'Content-Length';
+const transferEncodingHeader = 'Transfer-Encoding';
+
+const textLikeContentTypes = new Set([
+    plainMime,
+    'text/html',
+    'text/xml',
+    'text/css',
+    'text/javascript',
+    'application/xml',
+    'application/xhtml+xml',
+    'application/javascript'
+]);
+
+const knownNoBodyResponseStatuses = new Set([
+    204,
+    205,
+    304
+]);
+
+const debugLog = (msg, ...args) => {
 };
 
-utils$1.forEach(knownAdapters, (fn, value) => {
+const fetchAssert = (definition) => {
+    {
+      definition((condition, message) => {
+        console.assert(condition, message);
+      });
+    }
+};
+
+function patchDecodeJson(response) {
+  response.json = async () => {
+    return JSON.parse((await response.text()).trim());
+  };
+  return response;
+}
+
+const handlerFactory = (response) => {
+  return {
+    'text': response.text,
+    'form': response.formData,
+    'blob': response.blob,
+    'json': function jsonShim() {
+      return patchDecodeJson(response).json();
+    }
+  }
+};
+
+const selectHandlerFromConfig = (config, handlers) => {
+  const handler = handlers[config.responseType] || null;
+  debugLog('handler from: config', config.responseType, handler);
+  return handler;
+};
+
+const selectHandlerFromContentType = (config, handlers, contentType) => {
+  const resolvedContentType = (
+      // if it's a text-like content type, resolve it as text/plain
+      textLikeContentTypes.has(contentType) ? plainMime : contentType
+  );
+  const handler = {
+    'application/json': handlers['json'],
+    'text/plain': handlers['text'],
+  }[resolvedContentType] || null;
+
+  debugLog('handler from: content-type', config.responseType, handler);
+  return handler;
+};
+
+function isResponseEligibleForBody(response) {
+  // status cannot be present in `knownNoBodyResponseStatuses` in order to have a parse-able body. additionally, the
+  // response shouldn't be an opaque redirect; those should be handed directly back to the developer.
+  return !knownNoBodyResponseStatuses.has(
+      response.status
+  );
+}
+
+function processResponseBody(config, response, responseHeaders) {
+  let hasBody = false;
+  let handler = null;
+  const handlers = handlerFactory(response);
+
+  // case: non-chunked body with `content-length` header, and...
+  // case: chunked body with a `transfer-encoding` header
+  const hasContentType = responseHeaders.has(contentTypeHeader);
+  if ((responseHeaders.has(contentLengthHeader) || responseHeaders.has(transferEncodingHeader))) {
+    const hasKnownLength = responseHeaders.has(contentLengthHeader);
+    const contentType = responseHeaders.get(contentTypeHeader);
+
+    if (hasKnownLength) {
+      debugLog('body has known length', responseHeaders.get(contentLengthHeader));
+
+      // the response has a content-length, and therefore a known response size.
+      hasBody = +(responseHeaders.get(contentLengthHeader) || 0) > 0;
+    } else {
+
+      // the response has a transfer-encoding header indicating a chunked (streamed) response.
+      hasBody = true;
+    }
+
+    if (hasBody) {
+      // if we have detected a body, select a handler to consume the body based on config, or fall-back to the
+      // content-type to resolve a value. if all else fails, the data is considered raw data and made available via a
+      // raw `Blob`.
+      handler = config.responseType ? selectHandlerFromConfig(config, handlers) : null;
+      if (config.responseType) ;
+
+      if (hasContentType && handler == null) {
+        // trim any charset specified
+        const cleanedContentType = contentType.includes(';') ? contentType.split(';')[0] : contentType;
+        handler = selectHandlerFromContentType(config, handlers, cleanedContentType);
+      }
+      if (handler == null) {
+
+        // if we get this far, it means there wasn't a handler specified via configuration, and we couldn't easily
+        // resolve a handler for a text-type via the content-type. we'll have to fall back to a `Blob`.
+        handler = handlers['blob'] || null;
+      }
+    }
+  }
+  return [hasBody, handler];
+}
+
+function dispatchFetch(config, resolve, reject) {
+  debugLog(`invoked with platform: ${JSON.stringify(platform, null, 2)}`);
+
+  const abortController = new AbortController$1();
+  const { signal } = abortController;
+  const body = config.data;
+  const method = config.method.toUpperCase();
+  const responseType = config.responseType;
+  const requestHeaders = AxiosHeaders$1.from(config.headers).normalize();
+  let fullPath = buildFullPath(config.baseURL, config.url);
+
+  // safely parse into `URL`, or use existing/cached URL via config. skip this step for relative URLs, which do not
+  // parse into `URL` objects because they do not encapsulate origin info. make sure to let protocol-relative URLs
+  // through, though, which are considered absolute.
+  let parsedUrl = config.parsedUrl;
+  if (!parsedUrl && !(fullPath.startsWith('/') && !fullPath.startsWith('//'))) {
+    try {
+      // we are unable to parse the URL if it (1) is a relative URL, or (2) is a malformed URL to begin with. to avoid
+      // #1 causing an error, we can make an attempt here to use the current window origin as a relative base; this will
+      // only work in browsers, though, so we need to be careful to check that we have an origin in the first place.
+      if (platform.isStandardBrowserEnv || platform.isBrowser) {
+        debugLog('parsing with browser origin');
+        if (fullPath.startsWith('/')) {
+          // origin = `https://domain.com` (protocol + host + port if non-standard)
+          // fullPath = `/foo/bar` (relative path)
+          // `fullPath = https://domain.com/foo/bar`
+          fullPath = window.location.origin + fullPath;
+          debugLog(`fullPath after browser origin: ${fullPath}`);
+        }
+      } else {
+        debugLog('no browser origin to parse with');
+      }
+      parsedUrl = new URL(fullPath);
+    } catch (urlParseErr) {
+      console.error(`[axios:fetch] URL parse error: cannot parse '${fullPath}'`, urlParseErr);
+      reject(urlParseErr);
+      return;
+    }
+  }
+
+  const fetchOptions = config.fetchOptions || {};
+
+  // bail early if protocol is unsupported
+  const protocol = parseProtocol(fullPath);
+  if (protocol && platform.protocols.indexOf(protocol) === -1) {
+    reject(new AxiosError('Unsupported protocol ' + protocol + ':', AxiosError.ERR_BAD_REQUEST, config));
+    return;
+  }
+
+  // if we're posting form data, let the browser control the content type
+  if (isFormData(body) && platform.isStandardBrowserEnv) {
+    requestHeaders.setContentType(false);
+  }
+
+  // HTTP basic authentication
+  if (config.auth) {
+    const username = config.auth.username || '';
+    const password = config.auth.password ? unescape(encodeURIComponent(config.auth.password)) : '';
+    requestHeaders.set('Authorization', 'Basic ' + btoa(username + ':' + password));
+  }
+
+  // honor XHR `withCredentials` as fetch `mode:cors`
+  if (!isUndefined(config.withCredentials)) {
+    fetchOptions.mode = 'cors';
+  }
+
+  let req;
+  let fetchHandle;
+  let onCanceled;
+  if (config.cancelToken || config.signal) {
+    // eslint-disable-next-line func-names
+    onCanceled = cancel => {
+      if (!fetchHandle) {
+        // already canceled
+        return;
+      }
+      reject(!cancel || cancel.type ? new CanceledError(null, config, req) : cancel);
+      abortController.abort();
+      fetchHandle = null;
+    };
+
+    config.cancelToken && config.cancelToken.subscribe(onCanceled);
+    if (config.signal) {
+      config.signal.aborted ? onCanceled() : config.signal.addEventListener('abort', onCanceled);
+    }
+  }
+
+  // prep request headers
+  const serializedHeaders = requestHeaders.toJSON(true);
+  const headers = new FetchHeaders();
+  Object.entries(serializedHeaders).forEach(([key, value]) => {
+    headers.set(key, value);  // already merged
+  });
+  debugLog('fetch headers', Object.fromEntries(headers.entries()));
+
+  // body-less requests should not have content-type or content-length headers
+  body === undefined && (
+      headers.delete(contentTypeHeader) ||
+      headers.delete(contentLengthHeader)
+  );
+
+  debugLog(`request: ${method} ${parsedUrl ? parsedUrl.toString() : fullPath} (has body: ${!!body})`);
+  debugLog(`finalized headers`, Object.fromEntries(headers.entries()));
+
+  // prep HTTP request
+  req = new FetchRequest(parsedUrl || fullPath, {
+    method,
+    headers,
+    body,
+  });
+
+  // mount responseType to request if it is not the default
+  if (responseType && responseType !== defaultFetchResponseType) {
+    req.responseType = config.responseType;
+  }
+
+  // @TODO(sgammon): upload/download progress events
+
+  function done() {
+    if (config.cancelToken && onCanceled) {
+      config.cancelToken.unsubscribe(onCanceled);
+    }
+    if (config.signal && onCanceled) {
+      config.signal.removeEventListener('abort', onCanceled);
+    }
+  }
+
+  const cleanup = () => {
+    fetchHandle = null;
+  };
+
+  const continueChain = (response) => {
+    return settle(function _resolve(value) {
+      resolve(value);
+      done();
+    }, function _reject(err) {
+      reject(err);
+      done();
+    }, response);
+  };
+
+  // success handler: translates a `Response` to an axios response
+  const handleResponse = response => {
+    if (!fetchHandle) {
+      return;  // canceled
+    }
+    debugLog('response status =', response.status, response.statusText);
+
+    // begin preparing the response
+    debugLog('raw headers', Object.fromEntries(response.headers.entries()));
+    const responseHeaders = AxiosHeaders$1.from(
+        Object.fromEntries(response.headers.entries())
+    );
+
+    let hasBody = false;
+    let handler = null;
+    let eligibleForBody = isResponseEligibleForBody(response);
+
+    if (eligibleForBody) {
+      [hasBody, handler] = processResponseBody(
+          config,
+          response,
+          responseHeaders,
+      );
+    }
+
+    const synthesizedResponse = {
+      status: response.status,
+      statusText: response.statusText,
+      headers: responseHeaders,
+      request: req,
+      fetchResponse: response,
+      config,
+    };
+
+    if (!handler) {
+      if (hasBody) {
+        console.warn('axios-fetch: response has a body, but no handler could be resolved.');
+      }
+      continueChain(synthesizedResponse);
+      cleanup();  // done
+    } else {
+      debugLog('handler', config.responseType || defaultFetchResponseType, handler);
+
+      try {
+        // dispatch data handler if found (`text`, `json`, or `blob`)
+        fetchAssert((t) => t(typeof handler === 'function', "handler should be a function if resolved"));
+
+        debugLog('decode');
+        return handler.apply(response).then(data => {
+          debugLog('data');
+
+          // continue processing with merged-in data
+          return continueChain(Object.assign(synthesizedResponse, { data }));
+        }, reject);
+      } catch (err) {
+        console.error('axios-fetch: error while decoding response data', err);
+        reject(err);
+      } finally {
+        cleanup();
+      }
+    }
+  };
+
+  const handleError = err => {
+    reject(err);
+  };
+
+  // fire the request
+  fetchHandle = (config.fetcher || fetcher)(req, Object.assign({}, fetchOptions, {
+    signal,
+  })).then(handleResponse, handleError);
+
+  return fetchHandle;
+}
+
+function configFromURL(url, config) {
+  config = config || {};
+  if (!isUndefined(url) && (!isUndefined(URL) && url instanceof URL)) {
+    config.url = url.toString();
+  }
+  return config;
+}
+
+function isRequest(thing) {
+  if (platform.isNode) {
+    return thing instanceof FetchRequest;
+  } else if (platform.isStandardBrowserEnv) {
+    return thing instanceof (window.Request);
+  } else if (platform.isGenericJs) {
+    return thing instanceof FetchRequest;
+  }
+}
+
+function configFromRequest(request, config) {
+  config = config || {};
+  if (!isUndefined(request)) {
+    if (isString(request.url)) {
+      config.url = request.url;
+    }
+    // if (isString(request.method)) {
+    //   config.method = request.method;
+    // }
+    // if (request.headers.length > 0) {
+    //   config.headers = Object.fromEntries(request.headers.entries());
+    // }
+    // TODO(sgammon): full support for entire axios config
+  }
+  return config;
+}
+
+function fetchAdapter(config) {
+  return new Promise(function (accept, reject) {
+    try {
+      return dispatchFetch(config, accept, reject);
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
+const knownAdapters = {
+  http: httpAdapter,
+  xhr: xhrAdapter,
+  fetch: fetchAdapter
+};
+
+forEach(knownAdapters, (fn, value) => {
   if (fn) {
     try {
       Object.defineProperty(fn, 'name', {value});
@@ -2425,11 +2864,11 @@ utils$1.forEach(knownAdapters, (fn, value) => {
 
 const renderReason = (reason) => `- ${reason}`;
 
-const isResolvedHandle = (adapter) => utils$1.isFunction(adapter) || adapter === null || adapter === false;
+const isResolvedHandle = (adapter) => isFunction(adapter) || adapter === null || adapter === false;
 
 var adapters = {
   getAdapter: (adapters) => {
-    adapters = utils$1.isArray(adapters) ? adapters : [adapters];
+    adapters = isArray(adapters) ? adapters : [adapters];
 
     const {length} = adapters;
     let nameOrAdapter;
@@ -2597,6 +3036,36 @@ function mergeConfig(config1, config2) {
   }
 
   // eslint-disable-next-line consistent-return
+  function wrappedStringifiable(getter, types) {
+    return function (a, b) {
+      const value = getter(a, b);
+      if (!utils$1.isUndefined(value)) {
+        for (const type of types) {
+          if (value instanceof type) {
+            return value.toString();
+          }
+        }
+        return value;
+      }
+    }
+  }
+
+  // eslint-disable-next-line consistent-return
+  function wrappedTypeFactory(getter, types) {
+    return function (a, b) {
+      const value = getter(a, b);
+      if (!utils$1.isUndefined(value)) {
+        for (const type of types) {
+          if (value instanceof type) {
+            return type(value);
+          }
+        }
+        return value;
+      }
+    }
+  }
+
+  // eslint-disable-next-line consistent-return
   function defaultToConfig2(a, b) {
     if (!utils$1.isUndefined(b)) {
       return getMergedValue(undefined, b);
@@ -2615,7 +3084,7 @@ function mergeConfig(config1, config2) {
   }
 
   const mergeMap = {
-    url: valueFromConfig2,
+    url: wrappedStringifiable(valueFromConfig2, [URL]),
     method: valueFromConfig2,
     data: valueFromConfig2,
     baseURL: defaultToConfig2,
@@ -2628,6 +3097,8 @@ function mergeConfig(config1, config2) {
     withXSRFToken: defaultToConfig2,
     adapter: defaultToConfig2,
     responseType: defaultToConfig2,
+    fetcher: defaultToConfig2,
+    fetchOptions: defaultToConfig2,
     xsrfCookieName: defaultToConfig2,
     xsrfHeaderName: defaultToConfig2,
     onUploadProgress: defaultToConfig2,
@@ -2643,7 +3114,8 @@ function mergeConfig(config1, config2) {
     socketPath: defaultToConfig2,
     responseEncoding: defaultToConfig2,
     validateStatus: mergeDirectKeys,
-    headers: (a, b) => mergeDeepProperties(headersToObject(a), headersToObject(b), true)
+    headers: (a, b) => mergeDeepProperties(headersToObject(a), headersToObject(b), true),
+    parsedUrl: wrappedTypeFactory(defaultToConfig2, [URL]),
   };
 
   utils$1.forEach(Object.keys(Object.assign({}, config1, config2)), function computeConfigValue(prop) {
@@ -2655,7 +3127,7 @@ function mergeConfig(config1, config2) {
   return config;
 }
 
-const VERSION = "1.6.8";
+const VERSION = "1.6.8-fetch";
 
 const validators$1 = {};
 
@@ -2800,6 +3272,10 @@ class Axios {
     if (typeof configOrUrl === 'string') {
       config = config || {};
       config.url = configOrUrl;
+    } else if (!utils$1.isUndefined(URL) && configOrUrl instanceof URL) {
+      config = configFromURL(configOrUrl, config);
+    } else if (isRequest(configOrUrl)) {
+      config = configFromRequest(configOrUrl, config);
     } else {
       config = configOrUrl || {};
     }
@@ -3205,8 +3681,17 @@ function createInstance(defaultConfig) {
   utils$1.extend(instance, context, null, {allOwnKeys: true});
 
   // Factory for creating new instances
-  instance.create = function create(instanceConfig) {
-    return createInstance(mergeConfig(defaultConfig, instanceConfig));
+  instance.create = function create(instanceConfigOrUrlOrRequest, instanceConfig) {
+    instanceConfig = instanceConfig || instanceConfigOrUrlOrRequest || {};
+
+    // handles the case of a raw `URL` or `Request` object being passed into the `axios` constructor. we translate it to
+    // an axios configuration, preserving any additional config properties passed in the second parameter (optional).
+    if (instanceConfigOrUrlOrRequest instanceof URL) {
+      instanceConfig = configFromURL(instanceConfigOrUrlOrRequest, instanceConfig);
+    } else if (isRequest(instanceConfigOrUrlOrRequest)) {
+      instanceConfig = configFromRequest(instanceConfigOrUrlOrRequest, instanceConfig);
+    }
+    return createInstance(mergeConfig(defaultConfig, instanceConfig || instanceConfigOrUrlOrRequest));
   };
 
   return instance;
@@ -3251,6 +3736,8 @@ axios.formToJSON = thing => formDataToJSON(utils$1.isHTMLForm(thing) ? new FormD
 axios.getAdapter = adapters.getAdapter;
 
 axios.HttpStatusCode = HttpStatusCode$1;
+
+axios.FetchAdapter = fetchAdapter;
 
 axios.default = axios;
 
