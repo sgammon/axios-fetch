@@ -3,6 +3,8 @@
 
 const FormData$1 = require('form-data');
 const url = require('url');
+const nodeAbortController = require('node-abort-controller');
+const fetch = require('cross-fetch');
 const proxyFromEnv = require('proxy-from-env');
 const http = require('http');
 const https = require('https');
@@ -16,6 +18,7 @@ function _interopDefaultLegacy (e) { return e && typeof e === 'object' && 'defau
 
 const FormData__default = /*#__PURE__*/_interopDefaultLegacy(FormData$1);
 const url__default = /*#__PURE__*/_interopDefaultLegacy(url);
+const fetch__default = /*#__PURE__*/_interopDefaultLegacy(fetch);
 const http__default = /*#__PURE__*/_interopDefaultLegacy(http);
 const https__default = /*#__PURE__*/_interopDefaultLegacy(https);
 const util__default = /*#__PURE__*/_interopDefaultLegacy(util);
@@ -551,7 +554,7 @@ const toCamelCase = str => {
 };
 
 /* Creating a function that will check if an object has a property. */
-const hasOwnProperty = (({hasOwnProperty}) => (obj, prop) => hasOwnProperty.call(obj, prop))(Object.prototype);
+const _hasOwnProperty = (({hasOwnProperty}) => (obj, prop) => hasOwnProperty.call(obj, prop))(Object.prototype);
 
 /**
  * Determine if a value is a RegExp object
@@ -730,8 +733,8 @@ const utils$1 = {
   forEachEntry,
   matchAll,
   isHTMLForm,
-  hasOwnProperty,
-  hasOwnProp: hasOwnProperty, // an alias to avoid ESLint no-prototype-builtins detection
+  hasOwnProperty: _hasOwnProperty,
+  hasOwnProp: _hasOwnProperty, // an alias to avoid ESLint no-prototype-builtins detection
   reduceDescriptors,
   freezeMethods,
   toObjectSet,
@@ -1241,18 +1244,6 @@ const transitionalDefaults = {
   clarifyTimeoutError: false
 };
 
-const URLSearchParams = url__default["default"].URLSearchParams;
-
-const platform$1 = {
-  isNode: true,
-  classes: {
-    URLSearchParams,
-    FormData: FormData__default["default"],
-    Blob: typeof Blob !== 'undefined' && Blob || null
-  },
-  protocols: [ 'http', 'https', 'file', 'data' ]
-};
-
 const hasBrowserEnv = typeof window !== 'undefined' && typeof document !== 'undefined';
 
 /**
@@ -1301,6 +1292,28 @@ const utils = /*#__PURE__*/Object.freeze({
   hasStandardBrowserWebWorkerEnv: hasStandardBrowserWebWorkerEnv,
   hasStandardBrowserEnv: hasStandardBrowserEnv
 });
+
+const URLSearchParams = url__default["default"].URLSearchParams;
+
+const fetcher = fetch__default["default"];
+
+const platform$1 = {
+  isNode: true,
+  knownAdapters: ['http', 'fetch'],
+  defaultFetchOptions: {
+    redirect: 'follow'
+  },
+  classes: {
+    URLSearchParams,
+    FormData: FormData__default["default"],
+    Request: fetch.Request,
+    Response: fetch.Response,
+    Headers: fetch.Headers,
+    AbortController: nodeAbortController.AbortController,
+    Blob: typeof Blob !== 'undefined' && Blob || null
+  },
+  protocols: [ 'http', 'https', 'file', 'data' ]
+};
 
 const platform = {
   ...utils,
@@ -1436,11 +1449,8 @@ function stringifySafely(rawValue, parser, encoder) {
 }
 
 const defaults = {
-
   transitional: transitionalDefaults,
-
-  adapter: ['xhr', 'http'],
-
+  adapter: platform.knownAdapters || ['xhr', 'http', 'fetch'],
   transformRequest: [function transformRequest(data, headers) {
     const contentType = headers.getContentType() || '';
     const hasJSONContentType = contentType.indexOf('application/json') > -1;
@@ -1548,7 +1558,15 @@ const defaults = {
       'Accept': 'application/json, text/plain, */*',
       'Content-Type': undefined
     }
-  }
+  },
+
+  fetcher: null,
+
+  fetchOptions: platform.defaultFetchOptions || {
+    redirect: 'follow'
+  },
+
+  parsedUrl: null,
 };
 
 utils$1.forEach(['delete', 'get', 'head', 'post', 'put', 'patch'], (method) => {
@@ -1988,6 +2006,33 @@ function isAbsoluteURL(url) {
 }
 
 /**
+ * Trim `n` slashes from the start or `end` of a `subject` string.
+ *
+ * @param {!string} subject String to trim slashes from.
+ * @param {boolean=} opt_end Whether to trim from the end of the string. If not passed or passed as `false`, the start
+ *   of the string is inspected instead.
+ * @return {!string} String with slashes trimmed from either the start or end of the string.
+ */
+function trimSlashes(subject, opt_end) {
+  const originalLength = subject.length;
+  const getSubjectChar = () => subject.charAt(opt_end === true ? subject.length - 1 : 0);
+  const trimOne = () => subject = opt_end === true ? subject.slice(0, subject.length - 1) : subject.slice(1);
+
+  let char = getSubjectChar();
+  let iterations = 0;
+
+  while (char === '/') {
+    iterations++;
+    trimOne();
+    char = getSubjectChar();
+    if (iterations > originalLength) {
+      break;  // shouldn't infinite loop, but this protection guarantees it won't look past the length of the string
+    }
+  }
+  return subject;
+}
+
+/**
  * Creates a new URL by combining the specified URLs
  *
  * @param {string} baseURL The base URL
@@ -1997,7 +2042,7 @@ function isAbsoluteURL(url) {
  */
 function combineURLs(baseURL, relativeURL) {
   return relativeURL
-    ? baseURL.replace(/\/?\/$/, '') + '/' + relativeURL.replace(/^\/+/, '')
+    ? baseURL.replace(/\/?\/$/, '') + '/' + trimSlashes(relativeURL.replace(/^\/+/, ''))
     : baseURL;
 }
 
@@ -2018,7 +2063,7 @@ function buildFullPath(baseURL, requestedURL) {
   return requestedURL;
 }
 
-const VERSION = "1.6.8";
+const VERSION = "1.6.8-fetch";
 
 function parseProtocol(url) {
   const match = /^([-+\w]{1,25})(:?\/\/|:)/.exec(url);
@@ -3158,359 +3203,404 @@ const httpAdapter = isHttpAdapterSupported && function httpAdapter(config) {
   });
 };
 
-const cookies = platform.hasStandardBrowserEnv ?
+// eslint-disable-next-line strict
+const xhrAdapter = null;
 
-  // Standard browser envs support document.cookie
-  {
-    write(name, value, expires, path, domain, secure) {
-      const cookie = [name + '=' + encodeURIComponent(value)];
+const defaultFetchResponseType = 'json';
 
-      utils$1.isNumber(expires) && cookie.push('expires=' + new Date(expires).toGMTString());
+const plainMime = 'text/plain';
+const contentTypeHeader = 'Content-Type';
+const contentLengthHeader = 'Content-Length';
+const transferEncodingHeader = 'Transfer-Encoding';
 
-      utils$1.isString(path) && cookie.push('path=' + path);
+const textLikeContentTypes = new Set([
+    plainMime,
+    'text/html',
+    'text/xml',
+    'text/css',
+    'text/javascript',
+    'application/xml',
+    'application/xhtml+xml',
+    'application/javascript'
+]);
 
-      utils$1.isString(domain) && cookie.push('domain=' + domain);
+const knownNoBodyResponseStatuses = new Set([
+    204,
+    205,
+    304
+]);
 
-      secure === true && cookie.push('secure');
+const debugLog = (msg, ...args) => {
+};
 
-      document.cookie = cookie.join('; ');
-    },
+const fetchAssert = (definition) => {
+    {
+      definition((condition, message) => {
+        console.assert(condition, message);
+      });
+    }
+};
 
-    read(name) {
-      const match = document.cookie.match(new RegExp('(^|;\\s*)(' + name + ')=([^;]*)'));
-      return (match ? decodeURIComponent(match[3]) : null);
-    },
+function patchDecodeJson(response) {
+  response.json = async () => {
+    return JSON.parse((await response.text()).trim());
+  };
+  return response;
+}
 
-    remove(name) {
-      this.write(name, '', Date.now() - 86400000);
+const handlerFactory = (response) => {
+  return {
+    'text': response.text,
+    'form': response.formData,
+    'blob': response.blob,
+    'json': function jsonShim() {
+      return patchDecodeJson(response).json();
+    }
+  }
+};
+
+const selectHandlerFromConfig = (config, handlers) => {
+  const handler = handlers[config.responseType] || null;
+  debugLog('handler from: config', config.responseType, handler);
+  return handler;
+};
+
+const selectHandlerFromContentType = (config, handlers, contentType) => {
+  const resolvedContentType = (
+      // if it's a text-like content type, resolve it as text/plain
+      textLikeContentTypes.has(contentType) ? plainMime : contentType
+  );
+  const handler = {
+    'application/json': handlers['json'],
+    'text/plain': handlers['text'],
+  }[resolvedContentType] || null;
+
+  debugLog('handler from: content-type', config.responseType, handler);
+  return handler;
+};
+
+function isResponseEligibleForBody(response) {
+  // status cannot be present in `knownNoBodyResponseStatuses` in order to have a parse-able body. additionally, the
+  // response shouldn't be an opaque redirect; those should be handed directly back to the developer.
+  return !knownNoBodyResponseStatuses.has(
+      response.status
+  );
+}
+
+function processResponseBody(config, response, responseHeaders) {
+  let hasBody = false;
+  let handler = null;
+  const handlers = handlerFactory(response);
+
+  // case: non-chunked body with `content-length` header, and...
+  // case: chunked body with a `transfer-encoding` header
+  const hasContentType = responseHeaders.has(contentTypeHeader);
+  if ((responseHeaders.has(contentLengthHeader) || responseHeaders.has(transferEncodingHeader))) {
+    const hasKnownLength = responseHeaders.has(contentLengthHeader);
+    const contentType = responseHeaders.get(contentTypeHeader);
+
+    if (hasKnownLength) {
+      debugLog('body has known length', responseHeaders.get(contentLengthHeader));
+
+      // the response has a content-length, and therefore a known response size.
+      hasBody = +(responseHeaders.get(contentLengthHeader) || 0) > 0;
+    } else {
+
+      // the response has a transfer-encoding header indicating a chunked (streamed) response.
+      hasBody = true;
+    }
+
+    if (hasBody) {
+      // if we have detected a body, select a handler to consume the body based on config, or fall-back to the
+      // content-type to resolve a value. if all else fails, the data is considered raw data and made available via a
+      // raw `Blob`.
+      handler = config.responseType ? selectHandlerFromConfig(config, handlers) : null;
+      if (config.responseType) ;
+
+      if (hasContentType && handler == null) {
+        // trim any charset specified
+        const cleanedContentType = contentType.includes(';') ? contentType.split(';')[0] : contentType;
+        handler = selectHandlerFromContentType(config, handlers, cleanedContentType);
+      }
+      if (handler == null) {
+
+        // if we get this far, it means there wasn't a handler specified via configuration, and we couldn't easily
+        // resolve a handler for a text-type via the content-type. we'll have to fall back to a `Blob`.
+        handler = handlers['blob'] || null;
+      }
+    }
+  }
+  return [hasBody, handler];
+}
+
+function dispatchFetch(config, resolve, reject) {
+  debugLog(`invoked with platform: ${JSON.stringify(platform, null, 2)}`);
+
+  const abortController = new nodeAbortController.AbortController();
+  const { signal } = abortController;
+  const body = config.data;
+  const method = config.method.toUpperCase();
+  const responseType = config.responseType;
+  const requestHeaders = AxiosHeaders$1.from(config.headers).normalize();
+  let fullPath = buildFullPath(config.baseURL, config.url);
+
+  // safely parse into `URL`, or use existing/cached URL via config. skip this step for relative URLs, which do not
+  // parse into `URL` objects because they do not encapsulate origin info. make sure to let protocol-relative URLs
+  // through, though, which are considered absolute.
+  let parsedUrl = config.parsedUrl;
+  if (!parsedUrl && !(fullPath.startsWith('/') && !fullPath.startsWith('//'))) {
+    try {
+      // we are unable to parse the URL if it (1) is a relative URL, or (2) is a malformed URL to begin with. to avoid
+      // #1 causing an error, we can make an attempt here to use the current window origin as a relative base; this will
+      // only work in browsers, though, so we need to be careful to check that we have an origin in the first place.
+      if (platform.isStandardBrowserEnv || platform.isBrowser) {
+        debugLog('parsing with browser origin');
+        if (fullPath.startsWith('/')) {
+          // origin = `https://domain.com` (protocol + host + port if non-standard)
+          // fullPath = `/foo/bar` (relative path)
+          // `fullPath = https://domain.com/foo/bar`
+          fullPath = window.location.origin + fullPath;
+          debugLog(`fullPath after browser origin: ${fullPath}`);
+        }
+      } else {
+        debugLog('no browser origin to parse with');
+      }
+      parsedUrl = new URL(fullPath);
+    } catch (urlParseErr) {
+      console.error(`[axios:fetch] URL parse error: cannot parse '${fullPath}'`, urlParseErr);
+      reject(urlParseErr);
+      return;
     }
   }
 
-  :
+  const fetchOptions = config.fetchOptions || {};
 
-  // Non-standard browser env (web workers, react-native) lack needed support.
-  {
-    write() {},
-    read() {
-      return null;
-    },
-    remove() {}
+  // bail early if protocol is unsupported
+  const protocol = parseProtocol(fullPath);
+  if (protocol && platform.protocols.indexOf(protocol) === -1) {
+    reject(new AxiosError('Unsupported protocol ' + protocol + ':', AxiosError.ERR_BAD_REQUEST, config));
+    return;
+  }
+
+  // if we're posting form data, let the browser control the content type
+  if (isFormData(body) && platform.isStandardBrowserEnv) {
+    requestHeaders.setContentType(false);
+  }
+
+  // HTTP basic authentication
+  if (config.auth) {
+    const username = config.auth.username || '';
+    const password = config.auth.password ? unescape(encodeURIComponent(config.auth.password)) : '';
+    requestHeaders.set('Authorization', 'Basic ' + btoa(username + ':' + password));
+  }
+
+  // honor XHR `withCredentials` as fetch `mode:cors`
+  if (!isUndefined(config.withCredentials)) {
+    fetchOptions.mode = 'cors';
+  }
+
+  let req;
+  let fetchHandle;
+  let onCanceled;
+  if (config.cancelToken || config.signal) {
+    // eslint-disable-next-line func-names
+    onCanceled = cancel => {
+      if (!fetchHandle) {
+        // already canceled
+        return;
+      }
+      reject(!cancel || cancel.type ? new CanceledError(null, config, req) : cancel);
+      abortController.abort();
+      fetchHandle = null;
+    };
+
+    config.cancelToken && config.cancelToken.subscribe(onCanceled);
+    if (config.signal) {
+      config.signal.aborted ? onCanceled() : config.signal.addEventListener('abort', onCanceled);
+    }
+  }
+
+  // prep request headers
+  const serializedHeaders = requestHeaders.toJSON(true);
+  const headers = new fetch.Headers();
+  Object.entries(serializedHeaders).forEach(([key, value]) => {
+    headers.set(key, value);  // already merged
+  });
+  debugLog('fetch headers', Object.fromEntries(headers.entries()));
+
+  // body-less requests should not have content-type or content-length headers
+  body === undefined && (
+      headers.delete(contentTypeHeader) ||
+      headers.delete(contentLengthHeader)
+  );
+
+  debugLog(`request: ${method} ${parsedUrl ? parsedUrl.toString() : fullPath} (has body: ${!!body})`);
+  debugLog(`finalized headers`, Object.fromEntries(headers.entries()));
+
+  // prep HTTP request
+  req = new fetch.Request(parsedUrl || fullPath, {
+    method,
+    headers,
+    body,
+  });
+
+  // mount responseType to request if it is not the default
+  if (responseType && responseType !== defaultFetchResponseType) {
+    req.responseType = config.responseType;
+  }
+
+  // @TODO(sgammon): upload/download progress events
+
+  function done() {
+    if (config.cancelToken && onCanceled) {
+      config.cancelToken.unsubscribe(onCanceled);
+    }
+    if (config.signal && onCanceled) {
+      config.signal.removeEventListener('abort', onCanceled);
+    }
+  }
+
+  const cleanup = () => {
+    fetchHandle = null;
   };
 
-const isURLSameOrigin = platform.hasStandardBrowserEnv ?
+  const continueChain = (response) => {
+    return settle(function _resolve(value) {
+      resolve(value);
+      done();
+    }, function _reject(err) {
+      reject(err);
+      done();
+    }, response);
+  };
 
-// Standard browser envs have full support of the APIs needed to test
-// whether the request URL is of the same origin as current location.
-  (function standardBrowserEnv() {
-    const msie = /(msie|trident)/i.test(navigator.userAgent);
-    const urlParsingNode = document.createElement('a');
-    let originURL;
+  // success handler: translates a `Response` to an axios response
+  const handleResponse = response => {
+    if (!fetchHandle) {
+      return;  // canceled
+    }
+    debugLog('response status =', response.status, response.statusText);
 
-    /**
-    * Parse a URL to discover its components
-    *
-    * @param {String} url The URL to be parsed
-    * @returns {Object}
-    */
-    function resolveURL(url) {
-      let href = url;
+    // begin preparing the response
+    debugLog('raw headers', Object.fromEntries(response.headers.entries()));
+    const responseHeaders = AxiosHeaders$1.from(
+        Object.fromEntries(response.headers.entries())
+    );
 
-      if (msie) {
-        // IE needs attribute set twice to normalize properties
-        urlParsingNode.setAttribute('href', href);
-        href = urlParsingNode.href;
-      }
+    let hasBody = false;
+    let handler = null;
+    let eligibleForBody = isResponseEligibleForBody(response);
 
-      urlParsingNode.setAttribute('href', href);
-
-      // urlParsingNode provides the UrlUtils interface - http://url.spec.whatwg.org/#urlutils
-      return {
-        href: urlParsingNode.href,
-        protocol: urlParsingNode.protocol ? urlParsingNode.protocol.replace(/:$/, '') : '',
-        host: urlParsingNode.host,
-        search: urlParsingNode.search ? urlParsingNode.search.replace(/^\?/, '') : '',
-        hash: urlParsingNode.hash ? urlParsingNode.hash.replace(/^#/, '') : '',
-        hostname: urlParsingNode.hostname,
-        port: urlParsingNode.port,
-        pathname: (urlParsingNode.pathname.charAt(0) === '/') ?
-          urlParsingNode.pathname :
-          '/' + urlParsingNode.pathname
-      };
+    if (eligibleForBody) {
+      [hasBody, handler] = processResponseBody(
+          config,
+          response,
+          responseHeaders,
+      );
     }
 
-    originURL = resolveURL(window.location.href);
-
-    /**
-    * Determine if a URL shares the same origin as the current location
-    *
-    * @param {String} requestURL The URL to test
-    * @returns {boolean} True if URL shares the same origin, otherwise false
-    */
-    return function isURLSameOrigin(requestURL) {
-      const parsed = (utils$1.isString(requestURL)) ? resolveURL(requestURL) : requestURL;
-      return (parsed.protocol === originURL.protocol &&
-          parsed.host === originURL.host);
-    };
-  })() :
-
-  // Non standard browser envs (web workers, react-native) lack needed support.
-  (function nonStandardBrowserEnv() {
-    return function isURLSameOrigin() {
-      return true;
-    };
-  })();
-
-function progressEventReducer(listener, isDownloadStream) {
-  let bytesNotified = 0;
-  const _speedometer = speedometer(50, 250);
-
-  return e => {
-    const loaded = e.loaded;
-    const total = e.lengthComputable ? e.total : undefined;
-    const progressBytes = loaded - bytesNotified;
-    const rate = _speedometer(progressBytes);
-    const inRange = loaded <= total;
-
-    bytesNotified = loaded;
-
-    const data = {
-      loaded,
-      total,
-      progress: total ? (loaded / total) : undefined,
-      bytes: progressBytes,
-      rate: rate ? rate : undefined,
-      estimated: rate && total && inRange ? (total - loaded) / rate : undefined,
-      event: e
+    const synthesizedResponse = {
+      status: response.status,
+      statusText: response.statusText,
+      headers: responseHeaders,
+      request: req,
+      fetchResponse: response,
+      config,
     };
 
-    data[isDownloadStream ? 'download' : 'upload'] = true;
+    if (!handler) {
+      if (hasBody) {
+        console.warn('axios-fetch: response has a body, but no handler could be resolved.');
+      }
+      continueChain(synthesizedResponse);
+      cleanup();  // done
+    } else {
+      debugLog('handler', config.responseType || defaultFetchResponseType, handler);
 
-    listener(data);
+      try {
+        // dispatch data handler if found (`text`, `json`, or `blob`)
+        fetchAssert((t) => t(typeof handler === 'function', "handler should be a function if resolved"));
+
+        debugLog('decode');
+        return handler.apply(response).then(data => {
+          debugLog('data');
+
+          // continue processing with merged-in data
+          return continueChain(Object.assign(synthesizedResponse, { data }));
+        }, reject);
+      } catch (err) {
+        console.error('axios-fetch: error while decoding response data', err);
+        reject(err);
+      } finally {
+        cleanup();
+      }
+    }
   };
+
+  const handleError = err => {
+    reject(err);
+  };
+
+  // fire the request
+  fetchHandle = (config.fetcher || fetcher)(req, Object.assign({}, fetchOptions, {
+    signal,
+  })).then(handleResponse, handleError);
+
+  return fetchHandle;
 }
 
-const isXHRAdapterSupported = typeof XMLHttpRequest !== 'undefined';
+function configFromURL(url, config) {
+  config = config || {};
+  if (!isUndefined(url) && (!isUndefined(URL) && url instanceof URL)) {
+    config.url = url.toString();
+  }
+  return config;
+}
 
-const xhrAdapter = isXHRAdapterSupported && function (config) {
-  return new Promise(function dispatchXhrRequest(resolve, reject) {
-    let requestData = config.data;
-    const requestHeaders = AxiosHeaders$1.from(config.headers).normalize();
-    let {responseType, withXSRFToken} = config;
-    let onCanceled;
-    function done() {
-      if (config.cancelToken) {
-        config.cancelToken.unsubscribe(onCanceled);
-      }
+function isRequest(thing) {
+  if (platform.isNode) {
+    return thing instanceof fetch.Request;
+  } else if (platform.isStandardBrowserEnv) {
+    return thing instanceof (window.Request);
+  } else if (platform.isGenericJs) {
+    return thing instanceof fetch.Request;
+  }
+}
 
-      if (config.signal) {
-        config.signal.removeEventListener('abort', onCanceled);
-      }
+function configFromRequest(request, config) {
+  config = config || {};
+  if (!isUndefined(request)) {
+    if (isString(request.url)) {
+      config.url = request.url;
     }
+    // if (isString(request.method)) {
+    //   config.method = request.method;
+    // }
+    // if (request.headers.length > 0) {
+    //   config.headers = Object.fromEntries(request.headers.entries());
+    // }
+    // TODO(sgammon): full support for entire axios config
+  }
+  return config;
+}
 
-    let contentType;
-
-    if (utils$1.isFormData(requestData)) {
-      if (platform.hasStandardBrowserEnv || platform.hasStandardBrowserWebWorkerEnv) {
-        requestHeaders.setContentType(false); // Let the browser set it
-      } else if ((contentType = requestHeaders.getContentType()) !== false) {
-        // fix semicolon duplication issue for ReactNative FormData implementation
-        const [type, ...tokens] = contentType ? contentType.split(';').map(token => token.trim()).filter(Boolean) : [];
-        requestHeaders.setContentType([type || 'multipart/form-data', ...tokens].join('; '));
-      }
+function fetchAdapter(config) {
+  return new Promise(function (accept, reject) {
+    try {
+      return dispatchFetch(config, accept, reject);
+    } catch (err) {
+      reject(err);
     }
-
-    let request = new XMLHttpRequest();
-
-    // HTTP basic authentication
-    if (config.auth) {
-      const username = config.auth.username || '';
-      const password = config.auth.password ? unescape(encodeURIComponent(config.auth.password)) : '';
-      requestHeaders.set('Authorization', 'Basic ' + btoa(username + ':' + password));
-    }
-
-    const fullPath = buildFullPath(config.baseURL, config.url);
-
-    request.open(config.method.toUpperCase(), buildURL(fullPath, config.params, config.paramsSerializer), true);
-
-    // Set the request timeout in MS
-    request.timeout = config.timeout;
-
-    function onloadend() {
-      if (!request) {
-        return;
-      }
-      // Prepare the response
-      const responseHeaders = AxiosHeaders$1.from(
-        'getAllResponseHeaders' in request && request.getAllResponseHeaders()
-      );
-      const responseData = !responseType || responseType === 'text' || responseType === 'json' ?
-        request.responseText : request.response;
-      const response = {
-        data: responseData,
-        status: request.status,
-        statusText: request.statusText,
-        headers: responseHeaders,
-        config,
-        request
-      };
-
-      settle(function _resolve(value) {
-        resolve(value);
-        done();
-      }, function _reject(err) {
-        reject(err);
-        done();
-      }, response);
-
-      // Clean up request
-      request = null;
-    }
-
-    if ('onloadend' in request) {
-      // Use onloadend if available
-      request.onloadend = onloadend;
-    } else {
-      // Listen for ready state to emulate onloadend
-      request.onreadystatechange = function handleLoad() {
-        if (!request || request.readyState !== 4) {
-          return;
-        }
-
-        // The request errored out and we didn't get a response, this will be
-        // handled by onerror instead
-        // With one exception: request that using file: protocol, most browsers
-        // will return status as 0 even though it's a successful request
-        if (request.status === 0 && !(request.responseURL && request.responseURL.indexOf('file:') === 0)) {
-          return;
-        }
-        // readystate handler is calling before onerror or ontimeout handlers,
-        // so we should call onloadend on the next 'tick'
-        setTimeout(onloadend);
-      };
-    }
-
-    // Handle browser request cancellation (as opposed to a manual cancellation)
-    request.onabort = function handleAbort() {
-      if (!request) {
-        return;
-      }
-
-      reject(new AxiosError('Request aborted', AxiosError.ECONNABORTED, config, request));
-
-      // Clean up request
-      request = null;
-    };
-
-    // Handle low level network errors
-    request.onerror = function handleError() {
-      // Real errors are hidden from us by the browser
-      // onerror should only fire if it's a network error
-      reject(new AxiosError('Network Error', AxiosError.ERR_NETWORK, config, request));
-
-      // Clean up request
-      request = null;
-    };
-
-    // Handle timeout
-    request.ontimeout = function handleTimeout() {
-      let timeoutErrorMessage = config.timeout ? 'timeout of ' + config.timeout + 'ms exceeded' : 'timeout exceeded';
-      const transitional = config.transitional || transitionalDefaults;
-      if (config.timeoutErrorMessage) {
-        timeoutErrorMessage = config.timeoutErrorMessage;
-      }
-      reject(new AxiosError(
-        timeoutErrorMessage,
-        transitional.clarifyTimeoutError ? AxiosError.ETIMEDOUT : AxiosError.ECONNABORTED,
-        config,
-        request));
-
-      // Clean up request
-      request = null;
-    };
-
-    // Add xsrf header
-    // This is only done if running in a standard browser environment.
-    // Specifically not if we're in a web worker, or react-native.
-    if(platform.hasStandardBrowserEnv) {
-      withXSRFToken && utils$1.isFunction(withXSRFToken) && (withXSRFToken = withXSRFToken(config));
-
-      if (withXSRFToken || (withXSRFToken !== false && isURLSameOrigin(fullPath))) {
-        // Add xsrf header
-        const xsrfValue = config.xsrfHeaderName && config.xsrfCookieName && cookies.read(config.xsrfCookieName);
-
-        if (xsrfValue) {
-          requestHeaders.set(config.xsrfHeaderName, xsrfValue);
-        }
-      }
-    }
-
-    // Remove Content-Type if data is undefined
-    requestData === undefined && requestHeaders.setContentType(null);
-
-    // Add headers to the request
-    if ('setRequestHeader' in request) {
-      utils$1.forEach(requestHeaders.toJSON(), function setRequestHeader(val, key) {
-        request.setRequestHeader(key, val);
-      });
-    }
-
-    // Add withCredentials to request if needed
-    if (!utils$1.isUndefined(config.withCredentials)) {
-      request.withCredentials = !!config.withCredentials;
-    }
-
-    // Add responseType to request if needed
-    if (responseType && responseType !== 'json') {
-      request.responseType = config.responseType;
-    }
-
-    // Handle progress if needed
-    if (typeof config.onDownloadProgress === 'function') {
-      request.addEventListener('progress', progressEventReducer(config.onDownloadProgress, true));
-    }
-
-    // Not all browsers support upload events
-    if (typeof config.onUploadProgress === 'function' && request.upload) {
-      request.upload.addEventListener('progress', progressEventReducer(config.onUploadProgress));
-    }
-
-    if (config.cancelToken || config.signal) {
-      // Handle cancellation
-      // eslint-disable-next-line func-names
-      onCanceled = cancel => {
-        if (!request) {
-          return;
-        }
-        reject(!cancel || cancel.type ? new CanceledError(null, config, request) : cancel);
-        request.abort();
-        request = null;
-      };
-
-      config.cancelToken && config.cancelToken.subscribe(onCanceled);
-      if (config.signal) {
-        config.signal.aborted ? onCanceled() : config.signal.addEventListener('abort', onCanceled);
-      }
-    }
-
-    const protocol = parseProtocol(fullPath);
-
-    if (protocol && platform.protocols.indexOf(protocol) === -1) {
-      reject(new AxiosError('Unsupported protocol ' + protocol + ':', AxiosError.ERR_BAD_REQUEST, config));
-      return;
-    }
-
-
-    // Send the request
-    request.send(requestData || null);
   });
-};
+}
 
 const knownAdapters = {
   http: httpAdapter,
-  xhr: xhrAdapter
+  xhr: xhrAdapter,
+  fetch: fetchAdapter
 };
 
-utils$1.forEach(knownAdapters, (fn, value) => {
+forEach(knownAdapters, (fn, value) => {
   if (fn) {
     try {
       Object.defineProperty(fn, 'name', {value});
@@ -3523,11 +3613,11 @@ utils$1.forEach(knownAdapters, (fn, value) => {
 
 const renderReason = (reason) => `- ${reason}`;
 
-const isResolvedHandle = (adapter) => utils$1.isFunction(adapter) || adapter === null || adapter === false;
+const isResolvedHandle = (adapter) => isFunction(adapter) || adapter === null || adapter === false;
 
 const adapters = {
   getAdapter: (adapters) => {
-    adapters = utils$1.isArray(adapters) ? adapters : [adapters];
+    adapters = isArray(adapters) ? adapters : [adapters];
 
     const {length} = adapters;
     let nameOrAdapter;
@@ -3695,6 +3785,36 @@ function mergeConfig(config1, config2) {
   }
 
   // eslint-disable-next-line consistent-return
+  function wrappedStringifiable(getter, types) {
+    return function (a, b) {
+      const value = getter(a, b);
+      if (!utils$1.isUndefined(value)) {
+        for (const type of types) {
+          if (value instanceof type) {
+            return value.toString();
+          }
+        }
+        return value;
+      }
+    }
+  }
+
+  // eslint-disable-next-line consistent-return
+  function wrappedTypeFactory(getter, types) {
+    return function (a, b) {
+      const value = getter(a, b);
+      if (!utils$1.isUndefined(value)) {
+        for (const type of types) {
+          if (value instanceof type) {
+            return type(value);
+          }
+        }
+        return value;
+      }
+    }
+  }
+
+  // eslint-disable-next-line consistent-return
   function defaultToConfig2(a, b) {
     if (!utils$1.isUndefined(b)) {
       return getMergedValue(undefined, b);
@@ -3713,7 +3833,7 @@ function mergeConfig(config1, config2) {
   }
 
   const mergeMap = {
-    url: valueFromConfig2,
+    url: wrappedStringifiable(valueFromConfig2, [URL]),
     method: valueFromConfig2,
     data: valueFromConfig2,
     baseURL: defaultToConfig2,
@@ -3726,6 +3846,8 @@ function mergeConfig(config1, config2) {
     withXSRFToken: defaultToConfig2,
     adapter: defaultToConfig2,
     responseType: defaultToConfig2,
+    fetcher: defaultToConfig2,
+    fetchOptions: defaultToConfig2,
     xsrfCookieName: defaultToConfig2,
     xsrfHeaderName: defaultToConfig2,
     onUploadProgress: defaultToConfig2,
@@ -3741,7 +3863,8 @@ function mergeConfig(config1, config2) {
     socketPath: defaultToConfig2,
     responseEncoding: defaultToConfig2,
     validateStatus: mergeDirectKeys,
-    headers: (a, b) => mergeDeepProperties(headersToObject(a), headersToObject(b), true)
+    headers: (a, b) => mergeDeepProperties(headersToObject(a), headersToObject(b), true),
+    parsedUrl: wrappedTypeFactory(defaultToConfig2, [URL]),
   };
 
   utils$1.forEach(Object.keys(Object.assign({}, config1, config2)), function computeConfigValue(prop) {
@@ -3896,6 +4019,10 @@ class Axios {
     if (typeof configOrUrl === 'string') {
       config = config || {};
       config.url = configOrUrl;
+    } else if (!utils$1.isUndefined(URL) && configOrUrl instanceof URL) {
+      config = configFromURL(configOrUrl, config);
+    } else if (isRequest(configOrUrl)) {
+      config = configFromRequest(configOrUrl, config);
     } else {
       config = configOrUrl || {};
     }
@@ -4301,8 +4428,17 @@ function createInstance(defaultConfig) {
   utils$1.extend(instance, context, null, {allOwnKeys: true});
 
   // Factory for creating new instances
-  instance.create = function create(instanceConfig) {
-    return createInstance(mergeConfig(defaultConfig, instanceConfig));
+  instance.create = function create(instanceConfigOrUrlOrRequest, instanceConfig) {
+    instanceConfig = instanceConfig || instanceConfigOrUrlOrRequest || {};
+
+    // handles the case of a raw `URL` or `Request` object being passed into the `axios` constructor. we translate it to
+    // an axios configuration, preserving any additional config properties passed in the second parameter (optional).
+    if (instanceConfigOrUrlOrRequest instanceof URL) {
+      instanceConfig = configFromURL(instanceConfigOrUrlOrRequest, instanceConfig);
+    } else if (isRequest(instanceConfigOrUrlOrRequest)) {
+      instanceConfig = configFromRequest(instanceConfigOrUrlOrRequest, instanceConfig);
+    }
+    return createInstance(mergeConfig(defaultConfig, instanceConfig || instanceConfigOrUrlOrRequest));
   };
 
   return instance;
@@ -4347,6 +4483,8 @@ axios.formToJSON = thing => formDataToJSON(utils$1.isHTMLForm(thing) ? new FormD
 axios.getAdapter = adapters.getAdapter;
 
 axios.HttpStatusCode = HttpStatusCode$1;
+
+axios.FetchAdapter = fetchAdapter;
 
 axios.default = axios;
 
